@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PerfectExpress | Reliable Global Shipping</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bgMain: 'var(--bg-main)',
+            bgSurface: 'var(--bg-surface)',
+            borderColor: 'var(--border-color)',
+            textMain: 'var(--text-main)',
+            textMuted: 'var(--text-muted)',
+            glass: 'var(--glass-bg)',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            heading: ['Manrope', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;900&family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Dark Mode (Default) */
+      --bg-main: #0a0a0a;
+      --bg-surface: #171717;
+      --border-color: #262626;
+      --accent-red: #dc2626;
+      --text-main: #fafafa;
+      --text-muted: #737373;
+      --glass-bg: rgba(23, 23, 23, 0.6);
+    }
+    
+    [data-theme="light"] {
+      /* Grey Themed Light Mode */
+      --bg-main: #e5e5e5;
+      --bg-surface: #f5f5f5;
+      --border-color: #d4d4d4;
+      --accent-red: #dc2626;
+      --text-main: #171717;
+      --text-muted: #525252;
+      --glass-bg: rgba(245, 245, 245, 0.6);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      margin: 0;
+      overflow-x: hidden;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    h1, h2, h3, h4, .heading-font {
+      font-family: 'Manrope', sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .metadata-label {
+      font-family: 'Inter', sans-serif;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.35em;
+      font-size: 9px;
+    }
+    .accent-red-text { color: var(--accent-red); }
+    .bg-accent-red { background-color: var(--accent-red); }
+    
+    .glass-surface {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+    }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg-main); }
+    ::-webkit-scrollbar-thumb { background: #404040; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-red); }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom",
+    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
+    "@google/genai": "https://esm.sh/@google/genai@1.38.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./index.tsx"></script>
+</body>
+</html>
