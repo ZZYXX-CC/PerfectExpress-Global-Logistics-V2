@@ -8,7 +8,7 @@ import AdminShipmentEditor from './AdminShipmentEditor';
 import AdminUserEditor from './AdminUserEditor';
 import AdminStatusUpdater from './AdminStatusUpdater';
 import { getAllTickets, SupportTicket, updateTicketStatus } from '../services/support';
-import { deleteShipment, updateShipment, logShipmentEvent, getAllUsers, updateUserRole, UserProfile } from '../services/adminService';
+import { deleteShipment, updateShipment, logShipmentEvent, getAllUsers, updateUserRole, UserProfile, inviteUser } from '../services/adminService';
 import { useToast } from './ui/Toast';
 import { useConfirm } from './ui/ConfirmDialog';
 
@@ -49,6 +49,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
    // User Editor State
    const [isUserEditorOpen, setIsUserEditorOpen] = useState(false);
    const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+
+   // Invite User State
+   const [isInviteOpen, setIsInviteOpen] = useState(false);
+   const [inviteEmail, setInviteEmail] = useState('');
+   const [inviteRole, setInviteRole] = useState<'client' | 'admin'>('client');
 
    // Status Updater State
    const [isStatusUpdaterOpen, setIsStatusUpdaterOpen] = useState(false);
@@ -305,6 +310,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
    const handleUserEditorCancel = () => {
       setIsUserEditorOpen(false);
       setEditingUser(null);
+   };
+
+   // --- Invite User Handlers ---
+   const handleInviteUser = async () => {
+      if (!inviteEmail) {
+         toast.showError('Error', 'Please enter an email address');
+         return;
+      }
+
+      const result = await inviteUser(inviteEmail, inviteRole);
+      if (result.error) {
+         toast.showError('Invite Failed', result.error);
+      } else {
+         toast.showSuccess('Invited', `Invitation sent to ${inviteEmail}`);
+         setIsInviteOpen(false);
+         setInviteEmail('');
+         setInviteRole('client');
+      }
    };
 
    // --- Impersonate User (Login as User) ---
@@ -608,6 +631,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                            exit={{ opacity: 0, y: -10 }}
                         >
                            <div className="border border-borderColor rounded-sm overflow-hidden bg-bgSurface/10 backdrop-blur-md">
+                              {/* Toolbar */}
+                              <div className="p-4 border-b border-borderColor flex justify-end">
+                                 <button
+                                    onClick={() => setIsInviteOpen(true)}
+                                    className="bg-white text-black px-6 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-colors flex items-center gap-2"
+                                 >
+                                    <Icon icon="solar:user-plus-linear" width="16" />
+                                    Invite User
+                                 </button>
+                              </div>
                               {/* Standard Table (Desktop) */}
                               <table className="w-full text-left hidden lg:table">
                                  <thead className="bg-bgSurface border-b border-borderColor">
@@ -703,6 +736,67 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                                  </div>
                               )}
                            </div>
+
+                           {/* Invite Modal */}
+                           {isInviteOpen && (
+                              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                                 <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    className="bg-bgMain border border-borderColor rounded-sm p-6 w-full max-w-md shadow-2xl"
+                                 >
+                                    <h3 className="text-xl font-bold heading-font mb-4">Invite New User</h3>
+                                    <p className="text-sm text-textMuted mb-6">
+                                       Pre-authorize a user email. When they sign up, they will automatically be assigned this role.
+                                    </p>
+
+                                    <div className="space-y-4 mb-8">
+                                       <div>
+                                          <label className="metadata-label text-textMuted mb-1 block">Email Address</label>
+                                          <input
+                                             type="email"
+                                             value={inviteEmail}
+                                             onChange={(e) => setInviteEmail(e.target.value)}
+                                             className="w-full bg-bgSurface border border-borderColor p-3 rounded-sm text-sm text-textMain focus:border-red-600 focus:outline-none"
+                                             placeholder="user@example.com"
+                                          />
+                                       </div>
+                                       <div>
+                                          <label className="metadata-label text-textMuted mb-1 block">Assign Role</label>
+                                          <div className="flex gap-4">
+                                             <button
+                                                onClick={() => setInviteRole('client')}
+                                                className={`flex-1 py-2 border rounded-sm text-xs font-bold uppercase tracking-widest transition-all ${inviteRole === 'client' ? 'bg-bgSurface border-red-600 text-red-600' : 'border-borderColor text-textMuted'}`}
+                                             >
+                                                Client
+                                             </button>
+                                             <button
+                                                onClick={() => setInviteRole('admin')}
+                                                className={`flex-1 py-2 border rounded-sm text-xs font-bold uppercase tracking-widest transition-all ${inviteRole === 'admin' ? 'bg-bgSurface border-red-600 text-red-600' : 'border-borderColor text-textMuted'}`}
+                                             >
+                                                Admin
+                                             </button>
+                                          </div>
+                                       </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-3">
+                                       <button
+                                          onClick={() => setIsInviteOpen(false)}
+                                          className="px-4 py-2 text-xs font-bold text-textMuted hover:text-white uppercase tracking-widest"
+                                       >
+                                          Cancel
+                                       </button>
+                                       <button
+                                          onClick={handleInviteUser}
+                                          className="bg-red-600 text-white px-6 py-2 rounded-sm text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-colors"
+                                       >
+                                          Invite User
+                                       </button>
+                                    </div>
+                                 </motion.div>
+                              </div>
+                           )}
                         </motion.div>
                      )}
 

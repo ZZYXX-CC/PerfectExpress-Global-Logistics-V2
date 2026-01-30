@@ -240,3 +240,26 @@ export const updateUserRole = async (userId: string, newRole: 'client' | 'admin'
 
     return { success: true };
 };
+
+// Invite a user with a specific role
+export const inviteUser = async (email: string, role: 'client' | 'admin') => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { error: 'Not authenticated' };
+
+    const { error } = await supabase
+        .from('user_invites')
+        .upsert({
+            email,
+            role,
+            invited_by: user.id,
+            created_at: new Date().toISOString()
+        });
+
+    if (error) {
+        console.error('Error inviting user:', error);
+        return { error: 'Failed to invite user' };
+    }
+
+    return { success: true };
+};
