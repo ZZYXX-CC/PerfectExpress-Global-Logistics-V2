@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, ResponsiveContainer, XAxis, Tooltip } from 'recharts';
 import { User, Shipment } from '../types';
 import { supabase } from '../services/supabase';
 import AdminShipmentEditor from './AdminShipmentEditor';
+import AdminUserEditor from './AdminUserEditor';
+import AdminStatusUpdater from './AdminStatusUpdater';
 import { getAllTickets, SupportTicket, updateTicketStatus } from '../services/support';
+import { deleteShipment, updateShipment, logShipmentEvent, getAllUsers, updateUserRole, UserProfile } from '../services/adminService';
+import { useToast } from './ui/Toast';
+import { useConfirm } from './ui/ConfirmDialog';
 
 // --- Icons ---
 import { Icon } from '@iconify/react';
@@ -25,9 +31,13 @@ const statusColors: Record<string, string> = {
 };
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
+   const navigate = useNavigate();
+   const toast = useToast();
+   const { confirm, prompt } = useConfirm();
+
    const [activeTab, setActiveTab] = useState<'shipments' | 'users' | 'analytics' | 'support'>('analytics');
    const [shipments, setShipments] = useState<Shipment[]>([]);
-   const [users, setUsers] = useState<User[]>([]);
+   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
    const [loading, setLoading] = useState(true);
    const [searchQuery, setSearchQuery] = useState('');
    const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -35,6 +45,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
    // Editor State
    const [isEditorOpen, setIsEditorOpen] = useState(false);
    const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
+
+   // User Editor State
+   const [isUserEditorOpen, setIsUserEditorOpen] = useState(false);
+   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+
+   // Status Updater State
+   const [isStatusUpdaterOpen, setIsStatusUpdaterOpen] = useState(false);
+   const [statusUpdaterShipment, setStatusUpdaterShipment] = useState<Shipment | null>(null);
 
    // --- Metrics for Overlay ---
    const volumeData = [
@@ -79,31 +97,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                sender: {
                   name: senderInfo.name || 'Unknown',
                   street: senderInfo.address || 'Unknown',
-                  city: '',
-                  country: ''
+                  city: senderInfo.city || '',
+                  country: senderInfo.country || '',
+                  email: senderInfo.email || ''
                },
                recipient: {
                   name: receiverInfo.name || 'Unknown',
                   street: receiverInfo.address || 'Unknown',
-                  city: '',
-                  country: ''
+                  city: receiverInfo.city || '',
+                  country: receiverInfo.country || '',
+                  email: receiverInfo.email || ''
                },
                price: parseFloat(data.price || '0'),
+               createdAt: data.created_at,
                paymentStatus: data.payment_status
             };
          });
          setShipments(mappedShipments);
       }
 
-      // Fetch Users from profiles table
-      const { data: profileData } = await supabase.from('profiles').select('*').order('full_name');
-      if (profileData) {
-         setUsers(profileData.map(p => ({
-            name: p.full_name || 'Unnamed User',
-            email: p.email || 'No Email',
-            role: p.role === 'admin' ? 'Admin' : 'Client'
-         })));
-      }
+      // Fetch Users from profiles table using adminService
+      const profiles = await getAllUsers();
+      setUserProfiles(profiles);
 
       try {
          const allTickets = await getAllTickets();
@@ -133,9 +148,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
    };
 
    const handleDelete = async (id: string) => {
-      if (confirm('Are you sure you want to delete this shipment? This action is irreversible.')) {
-         await supabase.from('shipments').delete().eq('tracking_number', id);
-         loadData();
+      const confirmed = await confirm({
+         title: 'Delete Shipment',
+         message: 'Are you sure you want to delete this shipment? This action is irreversible.',
+         confirmText: 'Delete',
+         confirmStyle: 'danger'
+      });
+      if (confirmed) {
+         const result = await deleteShipment(id);
+         if (result.error) {
+            toast.showError('Delete Failed', result.error);
+         } else {
+            toast.showSuccess('Deleted', 'Shipment removed successfully');
+            loadData();
+         }
       }
    };
 
@@ -152,73 +178,157 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
 
    // --- Action Handlers ---
    const handleSmartAction = async (shipment: Shipment) => {
-      // Placeholder for dialog triggers
       console.log('Action triggered for:', shipment.id, shipment.status);
 
       let newStatus = shipment.status;
-      let updates: any = {};
+      let updates: Record<string, unknown> = {};
 
       if (shipment.status === 'pending') {
-         // Should open Quote Dialog
-         const priceText = prompt('Enter Quote Amount:'); // Temp fallback
+         const priceText = await prompt('Enter Quote Amount', 'Set the shipping price for this order');
          if (priceText) {
             newStatus = 'quoted';
             updates = { price: parseFloat(priceText), status: newStatus };
          }
       } else if (shipment.status === 'quoted') {
-         // Should open Payment Confirm
-         if (confirm('Confirm Payment Received?')) {
+         const confirmed = await confirm({
+            title: 'Confirm Payment',
+            message: 'Mark this shipment as payment received?',
+            confirmText: 'Confirm Payment'
+         });
+         if (confirmed) {
             newStatus = 'confirmed';
             updates = { payment_status: 'paid', status: newStatus };
          }
       } else if (shipment.status === 'confirmed') {
-         if (confirm('Dispatch Shipment?')) {
+         const confirmed = await confirm({
+            title: 'Dispatch Shipment',
+            message: 'Dispatch this shipment to carrier?',
+            confirmText: 'Dispatch'
+         });
+         if (confirmed) {
             newStatus = 'in-transit';
             updates = { status: newStatus };
          }
       } else if (shipment.status === 'in-transit') {
-         const loc = prompt('Update Location (or leave empty to mark delivered):');
-         if (loc) {
-            updates = { current_location: loc };
-         } else {
-            newStatus = 'delivered';
-            updates = { status: newStatus };
-         }
+         // Instead of a simple prompt, open the detailed status updater
+         setStatusUpdaterShipment(shipment);
+         setIsStatusUpdaterOpen(true);
+         return; // Exit here, let the modal handle the update
       }
 
       if (Object.keys(updates).length > 0) {
-         // Update history if status changed
+         // Use logShipmentEvent for status changes (includes history logging)
          if (updates.status) {
-            const newHistoryItem = {
-               status: updates.status,
-               location: updates.current_location || shipment.currentLocation || 'In Transit',
-               note: `Status updated to ${updates.status}`,
-               timestamp: new Date().toISOString()
-            };
+            const result = await logShipmentEvent(
+               shipment.id,
+               {
+                  status: updates.status as string,
+                  location: (updates.current_location as string) || shipment.currentLocation || 'In Transit',
+                  note: `Status updated to ${updates.status}`
+               },
+               false
+            );
 
-            // We need to fetch the current history from the DB first or just append if possible
-            // In a real app we'd fetch or use a RPC. For now we append if we have it.
-            const { data: currentShipment } = await supabase.from('shipments').select('history').eq('tracking_number', shipment.id).single();
-            if (currentShipment) {
-               updates.history = [...(currentShipment.history || []), newHistoryItem];
+            if (updates.price) {
+               await updateShipment(shipment.id, { price: updates.price as number });
+            }
+
+            if (result.error) {
+               toast.showError('Update Failed', result.error);
+            } else {
+               toast.showSuccess('Updated', `Shipment status changed to ${updates.status}`);
+               loadData();
+            }
+         } else {
+            const result = await updateShipment(shipment.id, updates as any);
+            if (result.error) {
+               toast.showError('Update Failed', result.error);
+            } else {
+               toast.showSuccess('Updated', 'Location updated successfully');
+               loadData();
             }
          }
+      }
+   };
 
-         updates.updated_at = new Date().toISOString();
+   // --- Status Updater Handlers ---
+   const handleOpenStatusUpdater = (shipment: Shipment) => {
+      setStatusUpdaterShipment(shipment);
+      setIsStatusUpdaterOpen(true);
+   };
 
-         const { error } = await supabase.from('shipments').update(updates).eq('tracking_number', shipment.id);
-         if (error) {
-            console.error('Update error:', error);
-            alert('Failed to update shipment.');
+   const handleStatusUpdaterSave = () => {
+      setIsStatusUpdaterOpen(false);
+      setStatusUpdaterShipment(null);
+      loadData();
+   };
+
+   const handleStatusUpdaterCancel = () => {
+      setIsStatusUpdaterOpen(false);
+      setStatusUpdaterShipment(null);
+   };
+
+
+
+   // --- User Role Toggle ---
+   const handleToggleRole = async (userId: string, currentRole: string) => {
+      const newRole = currentRole === 'admin' ? 'client' : 'admin';
+      const confirmed = await confirm({
+         title: 'Change User Role',
+         message: `Change this user's role to ${newRole.toUpperCase()}?`,
+         confirmText: 'Change Role',
+         confirmStyle: newRole === 'admin' ? 'primary' : 'danger'
+      });
+      if (confirmed) {
+         const result = await updateUserRole(userId, newRole);
+         if (result.error) {
+            toast.showError('Error', result.error);
          } else {
-            loadData(); // Refresh
+            toast.showSuccess('Role Updated', `User is now ${newRole}`);
+            loadData();
          }
+      }
+   };
+
+   // --- User Edit ---
+   const handleEditUser = (profile: UserProfile) => {
+      setEditingUser(profile);
+      setIsUserEditorOpen(true);
+   };
+
+   const handleUserEditorSave = () => {
+      setIsUserEditorOpen(false);
+      setEditingUser(null);
+      loadData();
+   };
+
+   const handleUserEditorCancel = () => {
+      setIsUserEditorOpen(false);
+      setEditingUser(null);
+   };
+
+   // --- Impersonate User (Login as User) ---
+   const handleImpersonateUser = async (userId: string) => {
+      const confirmed = await confirm({
+         title: 'Login As User',
+         message: 'This will log you in as this user. You will need to log out and log back in as admin to return. Continue?',
+         confirmText: 'Login As User',
+         confirmStyle: 'danger'
+      });
+      if (confirmed) {
+         // Store impersonation ID for App.tsx to pick up
+         localStorage.setItem('impersonated_user_id', userId);
+
+         toast.showInfo('Impersonation', 'Switching to user view...');
+         setTimeout(() => {
+            window.location.reload();
+         }, 1000);
       }
    };
 
    return (
       <section className="pt-32 pb-24 bg-bgMain min-h-screen text-textMain font-sans">
-         <div className="container mx-auto px-6">
+         <div className="container mx-auto px-4 md:px-6">
 
             {/* --- Header --- */}
             <motion.div
@@ -251,7 +361,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
 
             {/* --- Navigation Tabs --- */}
             {!isEditorOpen && (
-               <div className="flex gap-1 mb-8">
+               <div className="flex gap-1 mb-8 overflow-x-auto pb-2 scrollbar-hide">
                   {['analytics', 'shipments', 'users', 'support'].map((tab) => (
                      <button
                         key={tab}
@@ -352,61 +462,135 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                               </button>
                            </div>
 
-                           {/* Table */}
-                           <div className="border border-borderColor rounded-sm overflow-hidden bg-bgSurface/10 backdrop-blur-md">
-                              <table className="w-full text-left">
-                                 <thead className="bg-bgSurface border-b border-borderColor">
-                                    <tr>
-                                       <th className="p-4 metadata-label text-textMuted">ID</th>
-                                       <th className="p-4 metadata-label text-textMuted">Route</th>
-                                       <th className="p-4 metadata-label text-textMuted">Status</th>
-                                       <th className="p-4 metadata-label text-textMuted">Location</th>
-                                       <th className="p-4 metadata-label text-textMuted text-right">Action</th>
-                                    </tr>
-                                 </thead>
-                                 <tbody className="divide-y divide-borderColor">
-                                    {filteredShipments.map(shipment => (
-                                       <tr key={shipment.id} className="group hover:bg-white/5 transition-colors">
-                                          <td className="p-4 font-mono text-xs text-red-500">{shipment.id.substring(0, 8)}...</td>
-                                          <td className="p-4">
-                                             <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-textMain">{shipment.origin}</span>
-                                                <Icon icon="solar:arrow-down-linear" className="text-textMuted my-1 w-3" />
-                                                <span className="text-sm font-bold text-textMain">{shipment.destination}</span>
-                                             </div>
-                                          </td>
-                                          <td className="p-4">
-                                             <span className={`px-2 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${statusColors[shipment.status] || 'border-slate-500 text-slate-500'}`}>
-                                                {shipment.status}
-                                             </span>
-                                          </td>
-                                          <td className="p-4 text-xs text-textMuted">
-                                             <div className="flex items-center gap-2">
-                                                <Icon icon="solar:map-point-linear" />
-                                                {shipment.currentLocation}
-                                             </div>
-                                          </td>
-                                          <td className="p-4 text-right">
-                                             <button
-                                                onClick={() => handleSmartAction(shipment)}
-                                                className="text-[10px] font-bold uppercase tracking-widest border border-borderColor px-3 py-1.5 rounded-sm hover:border-red-600 hover:text-red-600 transition-colors bg-bgMain"
-                                             >
-                                                {shipment.status === 'pending' ? 'Review Quote' :
-                                                   shipment.status === 'quoted' ? 'Confirm Pay' :
-                                                      shipment.status === 'confirmed' ? 'Dispatch' :
-                                                         'Update'}
+                           {/* Table & Mobile Cards */}
+                           <div className="border border-borderColor rounded-sm bg-bgSurface/10 backdrop-blur-md overflow-hidden">
+                              <div className="overflow-x-auto">
+                                 {/* Standard Table (Desktop) */}
+                                 <table className="w-full text-left hidden lg:table min-w-[800px]">
+                                    <thead className="bg-bgSurface border-b border-borderColor">
+                                       <tr>
+                                          <th className="p-4 metadata-label text-textMuted">ID</th>
+                                          <th className="p-4 metadata-label text-textMuted">Route</th>
+                                          <th className="p-4 metadata-label text-textMuted">Status</th>
+                                          <th className="p-4 metadata-label text-textMuted">Location</th>
+                                          <th className="p-4 metadata-label text-textMuted text-right">Action</th>
+                                       </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-borderColor">
+                                       {filteredShipments.map(shipment => (
+                                          <tr key={shipment.id} className="group hover:bg-white/5 transition-colors">
+                                             <td className="p-4">
+                                                <button
+                                                   onClick={() => navigate(`/track/${shipment.id}`)}
+                                                   className="font-mono text-xs text-red-500 hover:text-red-400 hover:underline transition-colors"
+                                                >
+                                                   {shipment.id.substring(0, 12)}...
+                                                </button>
+                                             </td>
+                                             <td className="p-4">
+                                                <div className="flex flex-col">
+                                                   <span className="text-sm font-bold text-textMain">{shipment.origin}</span>
+                                                   <Icon icon="solar:arrow-down-linear" className="text-textMuted my-1 w-3" />
+                                                   <span className="text-sm font-bold text-textMain">{shipment.destination}</span>
+                                                </div>
+                                             </td>
+                                             <td className="p-4">
+                                                <span className={`px-2 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${statusColors[shipment.status] || 'border-slate-500 text-slate-500'}`}>
+                                                   {shipment.status}
+                                                </span>
+                                             </td>
+                                             <td className="p-4 text-xs text-textMuted">
+                                                <div className="flex items-center gap-2">
+                                                   <Icon icon="solar:map-point-linear" />
+                                                   {shipment.currentLocation}
+                                                </div>
+                                             </td>
+                                             <td className="p-4 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                   <button
+                                                      onClick={() => handleSmartAction(shipment)}
+                                                      className="text-[10px] font-bold uppercase tracking-widest border border-borderColor px-3 py-1.5 rounded-sm hover:border-red-600 hover:text-red-600 transition-colors bg-bgMain"
+                                                   >
+                                                      {shipment.status === 'pending' ? 'Review Quote' :
+                                                         shipment.status === 'quoted' ? 'Confirm Pay' :
+                                                            shipment.status === 'confirmed' ? 'Dispatch' :
+                                                               'Update'}
+                                                   </button>
+                                                   <button onClick={() => handleOpenStatusUpdater(shipment)} className="p-2 text-textMuted hover:text-white transition-colors" title="Update Status & Location">
+                                                      <Icon icon="solar:delivery-linear" />
+                                                   </button>
+                                                   <button onClick={() => handleEdit(shipment)} className="p-2 text-textMuted hover:text-white transition-colors" title="Edit">
+                                                      <Icon icon="solar:pen-linear" />
+                                                   </button>
+                                                   <button onClick={() => handleDelete(shipment.id)} className="p-2 text-textMuted hover:text-red-600 transition-colors" title="Delete">
+                                                      <Icon icon="solar:trash-bin-trash-linear" />
+                                                   </button>
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
+                              </div>
+
+                              {/* Mobile Cards */}
+                              <div className="lg:hidden divide-y divide-borderColor/50">
+                                 {filteredShipments.map(shipment => (
+                                    <div key={shipment.id} className="p-4 md:p-6 space-y-4 hover:bg-white/5 transition-colors">
+                                       <div className="flex justify-between items-start">
+                                          <div>
+                                             <p className="metadata-label text-textMuted mb-1">Tracking Number</p>
+                                             <button onClick={() => navigate(`/track/${shipment.id}`)} className="font-mono text-sm text-red-500 font-bold uppercase">
+                                                {shipment.id}
                                              </button>
-                                             <button onClick={() => handleEdit(shipment)} className="p-2 text-textMuted hover:text-white transition-colors">
+                                          </div>
+                                          <span className={`px-2 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${statusColors[shipment.status] || 'border-slate-500 text-slate-500'}`}>
+                                             {shipment.status}
+                                          </span>
+                                       </div>
+
+                                       <div className="grid grid-cols-2 gap-4">
+                                          <div>
+                                             <p className="metadata-label text-textMuted mb-1">Origin</p>
+                                             <p className="text-sm font-bold text-textMain truncate">{shipment.origin}</p>
+                                          </div>
+                                          <div>
+                                             <p className="metadata-label text-textMuted mb-1">Destination</p>
+                                             <p className="text-sm font-bold text-textMain truncate">{shipment.destination}</p>
+                                          </div>
+                                       </div>
+
+                                       <div>
+                                          <p className="metadata-label text-textMuted mb-1">Current Location</p>
+                                          <div className="flex items-center gap-2 text-xs font-bold text-textMain">
+                                             <Icon icon="solar:map-point-linear" className="text-red-600" />
+                                             {shipment.currentLocation}
+                                          </div>
+                                       </div>
+
+                                       <div className="flex gap-2 pt-2">
+                                          <button
+                                             onClick={() => handleSmartAction(shipment)}
+                                             className="flex-grow bg-bgSurface border border-borderColor text-[9px] font-black uppercase tracking-[0.2em] py-3 rounded-sm hover:border-red-600 transition-colors"
+                                          >
+                                             {shipment.status === 'pending' ? 'Review Quote' :
+                                                shipment.status === 'quoted' ? 'Confirm Payment' :
+                                                   shipment.status === 'confirmed' ? 'Dispatch' :
+                                                      'Update Location'}
+                                          </button>
+                                          <div className="flex gap-1">
+                                             <button onClick={() => handleEdit(shipment)} className="p-3 bg-bgSurface border border-borderColor rounded-sm text-textMuted">
                                                 <Icon icon="solar:pen-linear" />
                                              </button>
-                                             <button onClick={() => handleDelete(shipment.id)} className="p-2 text-textMuted hover:text-red-600 transition-colors">
+                                             <button onClick={() => handleDelete(shipment.id)} className="p-3 bg-bgSurface border border-borderColor rounded-sm text-red-600/50">
                                                 <Icon icon="solar:trash-bin-trash-linear" />
                                              </button>
-                                          </td>
-                                       </tr>
-                                    ))}
-                                 </tbody>
-                              </table>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 ))}
+                              </div>
+
                               {filteredShipments.length === 0 && (
                                  <div className="p-12 text-center text-textMuted uppercase tracking-widest text-xs">
                                     No active shipments found
@@ -422,14 +606,103 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                            initial={{ opacity: 0, y: 10 }}
                            animate={{ opacity: 1, y: 0 }}
                            exit={{ opacity: 0, y: -10 }}
-                           className="p-12 text-center border border-dashed border-borderColor rounded-sm"
                         >
-                           <Icon icon="solar:users-group-rounded-linear" className="w-12 h-12 text-textMuted mx-auto mb-4" />
-                           <h3 className="text-lg font-bold text-textMain mb-2">User Directory</h3>
-                           <p className="text-textMuted text-sm mb-6">Manage internal and external accounts.</p>
-                           <button className="bg-white text-black px-6 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest">
-                              Sync Users
-                           </button>
+                           <div className="border border-borderColor rounded-sm overflow-hidden bg-bgSurface/10 backdrop-blur-md">
+                              {/* Standard Table (Desktop) */}
+                              <table className="w-full text-left hidden lg:table">
+                                 <thead className="bg-bgSurface border-b border-borderColor">
+                                    <tr>
+                                       <th className="p-4 metadata-label text-textMuted">User</th>
+                                       <th className="p-4 metadata-label text-textMuted">Email</th>
+                                       <th className="p-4 metadata-label text-textMuted">Role</th>
+                                       <th className="p-4 metadata-label text-textMuted">Joined</th>
+                                       <th className="p-4 metadata-label text-textMuted text-right">Action</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-borderColor">
+                                    {userProfiles.map(profile => (
+                                       <tr key={profile.id} className="group hover:bg-white/5 transition-colors">
+                                          <td className="p-4">
+                                             <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-red-600/20 rounded-full flex items-center justify-center">
+                                                   <span className="text-xs font-bold text-red-600">{profile.full_name?.charAt(0) || 'U'}</span>
+                                                </div>
+                                                <span className="text-sm font-bold text-textMain">{profile.full_name || 'Unnamed'}</span>
+                                             </div>
+                                          </td>
+                                          <td className="p-4 text-xs text-textMuted">{profile.email}</td>
+                                          <td className="p-4">
+                                             <span className={`px-2 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${profile.role === 'admin'
+                                                ? 'text-purple-500 bg-purple-500/10 border-purple-500/20'
+                                                : 'text-blue-500 bg-blue-500/10 border-blue-500/20'
+                                                }`}>
+                                                {profile.role}
+                                             </span>
+                                          </td>
+                                          <td className="p-4 text-xs text-textMuted">
+                                             {new Date(profile.created_at).toLocaleDateString()}
+                                          </td>
+                                          <td className="p-4 text-right">
+                                             <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                   onClick={() => handleEditUser(profile)}
+                                                   className="p-2 text-textMuted hover:text-white transition-colors"
+                                                   title="Edit User"
+                                                >
+                                                   <Icon icon="solar:pen-linear" />
+                                                </button>
+                                                <button
+                                                   onClick={() => handleToggleRole(profile.id, profile.role)}
+                                                   className="text-[10px] font-bold uppercase tracking-widest border border-borderColor px-3 py-1.5 rounded-sm hover:border-red-600 hover:text-red-600 transition-colors bg-bgMain"
+                                                >
+                                                   {profile.role === 'admin' ? 'Make Client' : 'Make Admin'}
+                                                </button>
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+
+                              {/* Mobile Cards */}
+                              <div className="lg:hidden divide-y divide-borderColor/50">
+                                 {userProfiles.map(profile => (
+                                    <div key={profile.id} className="p-4 md:p-6 space-y-4 hover:bg-white/5 transition-colors">
+                                       <div className="flex justify-between items-center">
+                                          <div className="flex items-center gap-3">
+                                             <div className="w-10 h-10 bg-red-600/20 rounded-full flex items-center justify-center">
+                                                <span className="text-sm font-bold text-red-600">{profile.full_name?.charAt(0) || 'U'}</span>
+                                             </div>
+                                             <div>
+                                                <p className="text-sm font-bold text-textMain">{profile.full_name || 'Unnamed'}</p>
+                                                <p className="text-[10px] text-textMuted uppercase font-mono">{profile.email}</p>
+                                             </div>
+                                          </div>
+                                          <span className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-widest border ${profile.role === 'admin' ? 'text-purple-500 border-purple-500/30' : 'text-blue-500 border-blue-500/30'}`}>
+                                             {profile.role}
+                                          </span>
+                                       </div>
+                                       <div className="flex gap-2">
+                                          <button
+                                             onClick={() => handleToggleRole(profile.id, profile.role)}
+                                             className="flex-grow bg-bgSurface border border-borderColor text-[9px] font-black uppercase tracking-widest py-3 rounded-sm hover:border-red-600 transition-colors text-textMain"
+                                          >
+                                             {profile.role === 'admin' ? 'Set as Client' : 'Elevate to Admin'}
+                                          </button>
+                                          <button onClick={() => handleEditUser(profile)} className="p-3 bg-bgSurface border border-borderColor rounded-sm text-textMuted">
+                                             <Icon icon="solar:pen-linear" />
+                                          </button>
+                                       </div>
+                                    </div>
+                                 ))}
+                              </div>
+
+                              {userProfiles.length === 0 && (
+                                 <div className="p-12 text-center text-textMuted uppercase tracking-widest text-xs">
+                                    No users found
+                                 </div>
+                              )}
+                           </div>
                         </motion.div>
                      )}
 
@@ -441,7 +714,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                            exit={{ opacity: 0, y: -10 }}
                         >
                            <div className="border border-borderColor rounded-sm overflow-hidden bg-bgSurface/10 backdrop-blur-md">
-                              <table className="w-full text-left">
+                              {/* Standard Table (Desktop) */}
+                              <table className="w-full text-left hidden lg:table">
                                  <thead className="bg-bgSurface border-b border-borderColor">
                                     <tr>
                                        <th className="p-4 metadata-label text-textMuted">Ticket Info</th>
@@ -488,6 +762,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                                     ))}
                                  </tbody>
                               </table>
+
+                              {/* Mobile Cards */}
+                              <div className="lg:hidden divide-y divide-borderColor/50">
+                                 {tickets.map(ticket => (
+                                    <div key={ticket.id} className="p-4 md:p-6 space-y-4 hover:bg-white/5 transition-colors">
+                                       <div className="flex justify-between items-start">
+                                          <div>
+                                             <p className="font-mono text-xs text-red-500 font-bold uppercase">{ticket.ticket_number}</p>
+                                             <p className="text-[9px] text-textMuted font-medium uppercase tracking-widest">{new Date(ticket.created_at).toLocaleDateString()}</p>
+                                          </div>
+                                          <span className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-widest border ${ticket.status === 'open' ? 'text-green-500 border-green-500/30' : 'text-blue-500 border-blue-500/30'}`}>
+                                             {ticket.status.replace('_', ' ')}
+                                          </span>
+                                       </div>
+                                       <div>
+                                          <p className="metadata-label text-textMuted mb-1">Subject</p>
+                                          <p className="text-sm font-bold text-textMain">{ticket.subject}</p>
+                                       </div>
+                                       <div className="flex justify-between items-end pt-2">
+                                          <div>
+                                             <p className="metadata-label text-textMuted mb-0.5">Sender</p>
+                                             <p className="text-xs font-bold text-textMain">{ticket.name}</p>
+                                          </div>
+                                          <a
+                                             href={`/dashboard/tickets/${ticket.id}`}
+                                             className="bg-bgSurface border border-borderColor text-[9px] font-black uppercase tracking-widest px-4 py-2.5 rounded-sm hover:border-red-600 transition-colors text-textMain"
+                                          >
+                                             Enter Dashboard
+                                          </a>
+                                       </div>
+                                    </div>
+                                 ))}
+                              </div>
+
                               {tickets.length === 0 && (
                                  <div className="p-12 text-center text-textMuted uppercase tracking-widest text-xs">
                                     No active tickets found
@@ -497,6 +805,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                         </motion.div>
                      )}
                   </>
+               )}
+            </AnimatePresence>
+
+
+
+
+            <AnimatePresence>
+               {isUserEditorOpen && (
+                  <AdminUserEditor
+                     userProfile={editingUser}
+                     onSave={handleUserEditorSave}
+                     onCancel={handleUserEditorCancel}
+                     onImpersonate={handleImpersonateUser}
+                  />
+               )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+               {isStatusUpdaterOpen && (
+                  <AdminStatusUpdater
+                     shipment={statusUpdaterShipment}
+                     onSave={handleStatusUpdaterSave}
+                     onCancel={handleStatusUpdaterCancel}
+                  />
                )}
             </AnimatePresence>
 

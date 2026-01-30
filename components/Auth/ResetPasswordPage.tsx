@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
-import { supabase } from '../../services/supabase';
+import { isSupabaseConfigured, supabase } from '../../services/supabase';
 
 const ResetPasswordPage: React.FC = () => {
   const navigate = useNavigate();
@@ -15,13 +15,47 @@ const ResetPasswordPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Check if we have a valid session (from the email link)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        setError('Invalid or expired reset link. Please request a new password reset.');
+    if (!isSupabaseConfigured) {
+      setError('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the dev server.');
+      return;
+    }
+
+    const ensureSession = async () => {
+      try {
+        const searchParams = new URLSearchParams(location.search);
+        const code = searchParams.get('code');
+
+        const hashParams = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
+
+          window.history.replaceState(null, '', window.location.pathname);
+        } else if (accessToken && refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (sessionError) throw sessionError;
+
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setError('Invalid or expired reset link. Please request a new password reset.');
+        }
+      } catch (e: any) {
+        console.error('Failed to initialize reset-password session:', e);
+        setError(e?.message || 'Invalid or expired reset link. Please request a new password reset.');
       }
-    });
-  }, []);
+    };
+
+    ensureSession();
+  }, [location.hash, location.search]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

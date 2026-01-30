@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Shipment } from '../types';
 import { getTrackingInsight } from '../services/geminiService';
+import TrackingMap from './TrackingMap';
 
 interface ShipmentDetailsProps {
    shipment: Shipment;
@@ -44,8 +45,8 @@ const ShipmentDetails: React.FC<ShipmentDetailsProps> = ({ shipment, onBack }) =
                   <div className="flex gap-8">
                      <div className="text-right">
                         <p className="metadata-label text-textMuted mb-1">Current Status</p>
-                        <p className={`text-lg font-bold uppercase tracking-tight ${shipment.status === 'Delivered' ? 'text-green-500' : 'text-textMain'
-                           }`}>{shipment.status}</p>
+                        <p className={`text-lg font-bold uppercase tracking-tight ${shipment.status === 'delivered' ? 'text-green-500' : 'text-textMain'
+                           }`}>{shipment.status.replace(/-/g, ' ')}</p>
                      </div>
                      <div className="text-right">
                         <p className="metadata-label text-textMuted mb-1">Est. Arrival</p>
@@ -88,47 +89,21 @@ const ShipmentDetails: React.FC<ShipmentDetailsProps> = ({ shipment, onBack }) =
                      </div>
                   </motion.div>
 
-                  {/* Route Map Visual (Abstract) */}
+                  {/* Route Map Visual */}
                   <motion.div
                      initial={{ opacity: 0, y: 20 }}
                      animate={{ opacity: 1, y: 0 }}
                      transition={{ delay: 0.2 }}
-                     className="bg-bgSurface/20 border border-borderColor rounded-sm p-8 relative overflow-hidden h-64 flex items-center justify-between px-4 md:px-16"
+                     className="h-[400px] mb-8"
                   >
-                     <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(var(--text-muted) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-
-                     <div className="relative z-10 text-center">
-                        <div className="w-16 h-16 bg-bgMain border border-borderColor rounded-full flex items-center justify-center text-textMuted mb-4 mx-auto shadow-lg">
-                           <iconify-icon icon="solar:box-linear" width="24"></iconify-icon>
-                        </div>
-                        <p className="text-xl font-black heading-font text-textMain">{shipment.origin.split(' ')[0]}</p>
-                     </div>
-
-                     <div className="flex-1 mx-4 md:mx-8 relative">
-                        <div className="h-[2px] w-full bg-borderColor relative overflow-hidden">
-                           <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: '50%' }}
-                              transition={{ duration: 1.5, ease: "easeInOut" }}
-                              className="absolute left-0 top-0 bottom-0 bg-red-600"
-                           ></motion.div>
-                        </div>
-                        <motion.div
-                           initial={{ left: 0 }}
-                           animate={{ left: '50%' }}
-                           transition={{ duration: 1.5, ease: "easeInOut" }}
-                           className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 bg-bgMain border-2 border-red-600 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(220,38,38,0.4)] z-20"
-                        >
-                           <iconify-icon icon="solar:plane-linear" width="16" class="text-red-600"></iconify-icon>
-                        </motion.div>
-                     </div>
-
-                     <div className="relative z-10 text-center">
-                        <div className="w-16 h-16 bg-bgMain border border-borderColor rounded-full flex items-center justify-center text-textMuted mb-4 mx-auto shadow-lg">
-                           <iconify-icon icon="solar:map-point-linear" width="24"></iconify-icon>
-                        </div>
-                        <p className="text-xl font-black heading-font text-textMain">{shipment.destination.split(' ')[0]}</p>
-                     </div>
+                     <TrackingMap
+                        currentLocation={shipment.currentLocation}
+                        originAddress={`${shipment.sender.city}, ${shipment.sender.country}`}
+                        destinationAddress={`${shipment.recipient.city}, ${shipment.recipient.country}`}
+                        location={shipment.coordinates}
+                        status={shipment.status}
+                        className="h-full border border-borderColor"
+                     />
                   </motion.div>
 
                   {/* History Feed */}
@@ -143,18 +118,36 @@ const ShipmentDetails: React.FC<ShipmentDetailsProps> = ({ shipment, onBack }) =
                         Shipment Progress
                      </h3>
                      <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-borderColor">
-                        {shipment.history.map((event, i) => (
-                           <div key={i} className="relative pl-10 group">
-                              <div className={`absolute left-0 top-1.5 w-[23px] h-[23px] bg-bgMain border rounded flex items-center justify-center transition-all ${i === 0 ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)]' : 'border-borderColor'}`}>
-                                 <div className={`w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-red-600' : 'bg-textMuted'}`}></div>
-                              </div>
-                              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-2">
-                                 <p className="text-sm font-bold text-textMain uppercase tracking-tight">{event.location}</p>
-                                 <p className="text-[9px] font-black text-textMuted uppercase tracking-widest">{event.date} • {event.time}</p>
-                              </div>
-                              <p className="text-xs text-textMuted font-medium">{event.description}</p>
-                           </div>
-                        ))}
+                        <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-borderColor">
+                           {(() => {
+                              // Filter consecutive duplicates with robust normalization
+                              const filteredHistory = [...shipment.history].reverse().reduce((acc: any[], event: any) => {
+                                 const last = acc[acc.length - 1];
+
+                                 const normalize = (str: string) => str?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
+
+                                 if (!last ||
+                                    normalize(last.status) !== normalize(event.status) ||
+                                    normalize(last.location) !== normalize(event.location)) {
+                                    acc.push(event);
+                                 }
+                                 return acc;
+                              }, []);
+
+                              return filteredHistory.map((event, i) => (
+                                 <div key={i} className="relative pl-10 group">
+                                    <div className={`absolute left-0 top-1.5 w-[23px] h-[23px] bg-bgMain border rounded flex items-center justify-center transition-all ${i === 0 ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)] animate-pulse' : 'border-borderColor'}`}>
+                                       <div className={`w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-red-600 shadow-[0_0_5px_#dc2626]' : 'bg-textMuted'}`}></div>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-2">
+                                       <p className="text-sm font-bold text-textMain uppercase tracking-tight">{event.location}</p>
+                                       <p className="text-[9px] font-black text-textMuted uppercase tracking-widest">{event.date} • {event.time}</p>
+                                    </div>
+                                    <p className="text-xs text-textMuted font-medium">{event.description}</p>
+                                 </div>
+                              ));
+                           })()}
+                        </div>
                      </div>
                   </motion.div>
                </div>

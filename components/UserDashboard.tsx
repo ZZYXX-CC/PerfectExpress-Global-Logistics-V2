@@ -93,7 +93,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onTrack, onNavigate
                            <span className="text-[9px] font-black uppercase tracking-widest text-textMuted">Active</span>
                         </div>
                         <p className="text-3xl font-black heading-font text-textMain">
-                           {shipments.filter(s => s.status !== 'Delivered').length}
+                           {shipments.filter(s => s.status !== 'delivered').length}
                         </p>
                      </div>
                      <div className="bg-bgSurface p-6 rounded-sm border border-borderColor">
@@ -102,7 +102,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onTrack, onNavigate
                            <span className="text-[9px] font-black uppercase tracking-widest text-textMuted">Delivered</span>
                         </div>
                         <p className="text-3xl font-black heading-font text-textMain">
-                           {shipments.filter(s => s.status === 'Delivered').length}
+                           {shipments.filter(s => s.status === 'delivered').length}
                         </p>
                      </div>
                      <div className="hidden md:block bg-bgSurface p-6 rounded-sm border border-borderColor">
@@ -150,12 +150,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onTrack, onNavigate
                                     </div>
                                  </div>
                                  <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-                                    <span className={`px-3 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${shipment.status === 'In Transit' ? 'bg-blue-900/20 text-blue-500 border-blue-900/50' :
-                                       shipment.status === 'Delivered' ? 'bg-green-900/20 text-green-500 border-green-900/50' :
-                                          shipment.status === 'Out for Delivery' ? 'bg-yellow-900/20 text-yellow-500 border-yellow-900/50' :
+                                    <span className={`px-3 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${shipment.status === 'in-transit' ? 'bg-blue-900/20 text-blue-500 border-blue-900/50' :
+                                       shipment.status === 'delivered' ? 'bg-green-900/20 text-green-500 border-green-900/50' :
+                                          shipment.status === 'out-for-delivery' ? 'bg-yellow-900/20 text-yellow-500 border-yellow-900/50' :
                                              'bg-bgMain text-textMuted border-borderColor'
                                        }`}>
-                                       {shipment.status}
+                                       {shipment.status.replace(/-/g, ' ')}
                                     </span>
                                     <div className="text-right">
                                        <p className="text-[9px] text-textMuted uppercase tracking-widest font-bold">ETA</p>
@@ -206,11 +206,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onTrack, onNavigate
                      <h3 className="text-[10px] font-black uppercase tracking-widest text-textMuted mb-4">Rapid Actions</h3>
                      <div className="grid grid-cols-2 gap-4">
                         <button
-                           onClick={() => onNavigate('quotes')}
+                           onClick={() => onNavigate('ship')}
                            className="p-4 bg-bgSurface border border-borderColor hover:border-red-600 transition-colors rounded-sm text-left group"
                         >
-                           <iconify-icon icon="solar:calculator-linear" width="20" class="text-textMuted group-hover:text-red-600 mb-2 transition-colors"></iconify-icon>
-                           <p className="text-[10px] font-black uppercase tracking-widest text-textMain">New Quote</p>
+                           <iconify-icon icon="solar:box-plus-linear" width="20" class="text-textMuted group-hover:text-red-600 mb-2 transition-colors"></iconify-icon>
+                           <p className="text-[10px] font-black uppercase tracking-widest text-textMain">Book Shipment</p>
                         </button>
                         <button
                            onClick={() => onNavigate('tracking')}

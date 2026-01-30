@@ -4,7 +4,7 @@ import { getTrackingInsight } from '../services/geminiService';
 import { Shipment } from '../types';
 
 interface TrackingCardProps {
-  onTrack: (id: string) => Shipment;
+  onTrack: (id: string) => Promise<Shipment | null>;
 }
 
 const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
@@ -12,23 +12,24 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
   const [loading, setLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<Shipment['status'] | null>(null);
+  const [trackError, setTrackError] = useState<string | null>(null);
 
-  const getProgress = (status: string) => {
+  const getProgress = (status: Shipment['status']) => {
     switch(status) {
-      case 'Pending': return 25;
-      case 'In Transit': return 50;
-      case 'Out for Delivery': return 75;
-      case 'Delivered': return 100;
+      case 'pending': return 25;
+      case 'in-transit': return 50;
+      case 'out-for-delivery': return 75;
+      case 'delivered': return 100;
       default: return 0;
     }
   };
 
-  const getProgressLabel = (status: string) => {
+  const getProgressLabel = (status: Shipment['status']) => {
      switch(status) {
-      case 'Pending': return 'Order Processing';
-      case 'In Transit': return 'In Transit Network';
-      case 'Out for Delivery': return 'Last Mile Delivery';
-      case 'Delivered': return 'Package Delivered';
+      case 'pending': return 'Order Processing';
+      case 'in-transit': return 'In Transit Network';
+      case 'out-for-delivery': return 'Last Mile Delivery';
+      case 'delivered': return 'Package Delivered';
       default: return 'Tracking...';
     }
   };
@@ -40,16 +41,24 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
     setLoading(true);
     setAiInsight(null);
     setCurrentStatus(null);
+    setTrackError(null);
 
     // Short delay to simulate network feel even with local mock
     await new Promise(r => setTimeout(r, 600));
 
-    const shipment = onTrack(trackingId);
-    setCurrentStatus(shipment.status);
-    
-    const insight = await getTrackingInsight(trackingId, shipment.status);
-    setAiInsight(insight || null);
-    setLoading(false);
+    try {
+      const shipment = await onTrack(trackingId);
+      if (!shipment) {
+        setTrackError('Shipment not found');
+        return;
+      }
+
+      setCurrentStatus(shipment.status);
+      const insight = await getTrackingInsight(trackingId, shipment.status);
+      setAiInsight(insight || null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,7 +99,22 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
         </form>
 
         <AnimatePresence>
-          {currentStatus && (
+          {trackError && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mx-1.5 mt-4 mb-1 p-6 bg-bgMain border border-borderColor rounded-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-red-600 text-center">
+                  {trackError}
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {currentStatus && !trackError && (
             <motion.div 
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
@@ -115,7 +139,7 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
                       </motion.div>
                    </div>
                    <div className="flex justify-between mt-2">
-                      {['Pending', 'In Transit', 'Out for Delivery', 'Delivered'].map((step, i) => {
+                      {(['pending', 'in-transit', 'out-for-delivery', 'delivered'] as Shipment['status'][]).map((step) => {
                          const stepProgress = getProgress(step);
                          const currentProgress = getProgress(currentStatus);
                          const isActive = currentProgress >= stepProgress;
@@ -123,7 +147,7 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
                          return (
                            <div key={step} className={`flex flex-col items-center gap-1 transition-colors duration-500 ${isActive ? 'text-textMain' : 'text-textMuted/30'}`}>
                               <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-red-600' : 'bg-current'}`}></div>
-                              <span className="hidden md:block text-[8px] font-bold uppercase tracking-wider">{step}</span>
+                              <span className="hidden md:block text-[8px] font-bold uppercase tracking-wider">{step.replace(/-/g, ' ')}</span>
                            </div>
                          )
                       })}

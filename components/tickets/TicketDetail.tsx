@@ -3,25 +3,33 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { getTicketDetails, addReply, SupportTicket, TicketReply, updateTicketStatus } from '../../services/support';
 import { supabase } from '../../services/supabase';
+import { useToast } from '../ui/Toast';
 
 const TicketDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const toast = useToast();
     const [ticket, setTicket] = useState<SupportTicket | null>(null);
     const [replies, setReplies] = useState<TicketReply[]>([]);
     const [loading, setLoading] = useState(true);
     const [replyText, setReplyText] = useState('');
     const [sending, setSending] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
-    const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
+    const [currentUser, setCurrentUser] = useState<{ id: string, email: string, role: string } | null>(null);
 
     useEffect(() => {
         if (id) {
             loadData(id);
         }
-        supabase.auth.getUser().then(({ data }) => {
-            if (data.user?.email) setCurrentUserEmail(data.user.email);
-        });
+
+        const fetchUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+                setCurrentUser({ id: user.id, email: user.email || '', role: profile?.role || 'client' });
+            }
+        };
+        fetchUser();
     }, [id]);
 
     useEffect(() => {
@@ -42,38 +50,46 @@ const TicketDetail: React.FC = () => {
 
     const handleSendReply = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!replyText.trim() || !id || !ticket) return;
+        if (!replyText.trim() || !id || !ticket || !currentUser) return;
 
         setSending(true);
         try {
-            // Determine sender type (Assuming this component is used by Users context predominantly, 
-            // but could be shared. Logic handles 'admin' if role context was clearer, 
-            // for now default to customer unless we check role props)
-            const senderType = 'customer'; // Default for user dashboard
+            // detailed logic to handle "View As" mode
+            const impersonatedId = localStorage.getItem('impersonated_user_id');
+            // If impersonating, we are ACTING as the customer
+            const isImpersonating = !!impersonatedId;
 
-            await addReply(id, replyText, senderType, ticket.name); // Using ticket creator name as fallback or user name
+            const senderType = (currentUser.role === 'admin' && !isImpersonating) ? 'admin' : 'customer';
+            const senderName = (currentUser.role === 'admin' && !isImpersonating) ? 'Support Agent' : ticket.name;
 
-            // If ticket was resolved/closed, re-open it? 
-            // Often logic for support systems.
-            if (ticket.status === 'resolved' || ticket.status === 'closed') {
+            await addReply(id, replyText, senderType, senderName);
+
+            // If user replies to a resolved/closed ticket, re-open it
+            if (senderType === 'customer' && (ticket.status === 'resolved' || ticket.status === 'closed')) {
                 await updateTicketStatus(id, 'in_progress');
             }
 
             setReplyText('');
-            await loadData(id); // Reload to show new message
+            toast.showSuccess('Reply Sent', 'Your message has been transmitted.');
+            await loadData(id);
         } catch (error) {
             console.error('Failed to send reply:', error);
+            toast.showError('Transmission Error', 'Failed to send reply.');
         } finally {
             setSending(false);
         }
     };
 
-    const handleCloseTicket = async () => {
-        if (!id || !confirm("Are you sure you want to mark this ticket as resolved?")) return;
+    const handleUpdateStatus = async (newStatus: SupportTicket['status']) => {
+        if (!id) return;
         try {
-            await updateTicketStatus(id, 'resolved');
+            await updateTicketStatus(id, newStatus);
+            toast.showSuccess('Ticket Updated', `Status changed to ${newStatus}`);
             loadData(id);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            toast.showError('Update Failed', 'Failed to update ticket status.');
+        }
     };
 
     if (loading) return <div className="min-h-screen bg-bgMain pt-32 pb-20 flex justify-center"><div className="animate-pulse text-xs font-mono text-red-600">LOADING DATA...</div></div>;
@@ -89,35 +105,76 @@ const TicketDetail: React.FC = () => {
                             <Icon icon="solar:arrow-left-linear" />
                         </button>
                         <span className="font-mono text-xs text-red-500">{ticket.ticket_number}</span>
-                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 bg-white/5 rounded-sm text-textMuted">
-                            {ticket.status.replace('_', ' ')}
-                        </span>
+                        <div className="flex gap-2">
+                            <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-sm font-black border ${ticket.status === 'open' ? 'text-green-500 bg-green-500/10 border-green-500/20' :
+                                ticket.status === 'in_progress' ? 'text-blue-500 bg-blue-500/10 border-blue-500/20' :
+                                    ticket.status === 'resolved' ? 'text-purple-500 bg-purple-500/10 border-purple-500/20' :
+                                        'text-neutral-500 bg-neutral-500/10 border-neutral-500/20'
+                                }`}>
+                                {ticket.status.replace('_', ' ')}
+                            </span>
+                        </div>
                     </div>
                     <h2 className="text-xl font-bold text-textMain">{ticket.subject}</h2>
                 </div>
-                {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-                    <button
-                        onClick={handleCloseTicket}
-                        className="text-[10px] font-black uppercase tracking-widest text-textMuted hover:text-green-500 transition-colors border border-borderColor px-3 py-1.5 rounded-sm hover:border-green-500"
-                    >
-                        Mark Resolved
-                    </button>
-                )}
+
+                <div className="flex gap-2">
+                    {currentUser?.role === 'admin' ? (
+                        <select
+                            value={ticket.status}
+                            onChange={(e) => handleUpdateStatus(e.target.value as any)}
+                            className="bg-bgMain border border-borderColor text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-sm outline-none focus:border-red-600"
+                        >
+                            <option value="open">OPEN</option>
+                            <option value="in_progress">IN PROGRESS</option>
+                            <option value="resolved">RESOLVED</option>
+                            <option value="closed">CLOSED</option>
+                        </select>
+                    ) : (
+                        ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+                            <button
+                                onClick={() => handleUpdateStatus('resolved')}
+                                className="text-[10px] font-black uppercase tracking-widest text-textMuted hover:text-green-500 transition-colors border border-borderColor px-3 py-1.5 rounded-sm hover:border-green-500"
+                            >
+                                Mark Resolved
+                            </button>
+                        )
+                    )}
+                </div>
             </div>
 
             {/* Messages Area */}
-            <div className="flex-grow p-6 overflow-y-auto space-y-6 bg-bgMain max-h-[60vh]">
+            <div className="flex-grow p-6 overflow-y-auto space-y-6 bg-bgMain custom-scrollbar relative">
+                {/* Visual Grid for contrast */}
+                <div className="absolute inset-0 bg-[radial-gradient(#262626_1px,transparent_1px)] [background-size:20px_20px] opacity-10 pointer-events-none"></div>
+
                 {replies.map((reply) => {
-                    const isMe = reply.sender_type === 'customer'; // Logic could be refined if admin views this
+                    const impersonatedId = localStorage.getItem('impersonated_user_id');
+                    const activeUserId = impersonatedId || currentUser?.id;
+                    const isAdminMsg = reply.sender_type === 'admin';
+
+                    // logic for alignment:
+                    // Always show Admin messages on the right and Customer messages on the left
+                    // for a consistent "Chat" experience.
+                    const isRightAligned = isAdminMsg;
+
                     return (
-                        <div key={reply.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                                <div className={`p-4 rounded-sm border ${isMe ? 'bg-bgSurface/30 border-borderColor text-right' : 'bg-red-900/10 border-red-900/20'} mb-1`}>
-                                    <p className="text-sm text-textMain whitespace-pre-wrap leading-relaxed">{reply.message}</p>
+                        <div key={reply.id} className={`flex ${isRightAligned ? 'justify-end' : 'justify-start'} relative z-10`}>
+                            <div className={`max-w-[75%] md:max-w-[60%] ${isRightAligned ? 'items-end' : 'items-start'} flex flex-col group`}>
+                                <div className={`p-4 rounded-sm border transition-all duration-300 ${isAdminMsg
+                                    ? 'bg-red-600/10 border-red-600/30 shadow-[0_0_20px_rgba(220,38,38,0.05)]'
+                                    : 'bg-bgSurface/40 border-borderColor backdrop-blur-md'
+                                    } ${isRightAligned ? 'text-right' : 'text-left'} mb-2 group-hover:border-red-600/50`}>
+                                    <p className="text-[13px] text-textMain whitespace-pre-wrap leading-relaxed font-medium">{reply.message}</p>
                                 </div>
-                                <span className="text-[9px] text-textMuted uppercase tracking-wider">
-                                    {reply.sender_name || (isMe ? 'You' : 'Support')} • {new Date(reply.created_at).toLocaleString()}
-                                </span>
+                                <div className={`flex items-center gap-2 px-1 ${isRightAligned ? 'flex-row-reverse' : ''}`}>
+                                    <span className={`text-[9px] font-black uppercase tracking-widest ${isAdminMsg ? 'text-red-600' : 'text-textMuted'}`}>
+                                        {isAdminMsg ? 'SUPPORT AGENT' : (reply.sender_name || ticket.name)}
+                                    </span>
+                                    <span className="text-[9px] text-textMuted/50 font-mono">
+                                        {new Date(reply.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     );

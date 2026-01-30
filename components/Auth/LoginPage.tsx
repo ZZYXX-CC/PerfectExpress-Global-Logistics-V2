@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AuthLayout from './AuthLayout';
-import { supabase } from '../../services/supabase';
+import { isSupabaseConfigured, supabase } from '../../services/supabase';
 
 interface LoginPageProps {
-  onLogin: (email: string) => void;
+  onLogin: (email: string) => void | Promise<void>;
   onNavigate: (page: string) => void;
 }
 
@@ -13,6 +13,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigate }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const didCompleteRef = React.useRef(false);
 
   React.useEffect(() => {
     // Pre-fill with common admin credentials for dev ease if current values are empty
@@ -21,37 +22,104 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigate }) => {
       setPassword('11223344!');
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (didCompleteRef.current) return;
+      if (event !== 'SIGNED_IN') return;
+      if (!session?.user?.email) return;
+
+      didCompleteRef.current = true;
+      setError(null);
+      setLoading(false);
+      await Promise.resolve(onLogin(session.user.email));
+    });
+
+    return () => subscription.unsubscribe();
+  }, [onLogin]);
   const [magicSent, setMagicSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isSupabaseConfigured) {
+      setError('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then restart the dev server.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       if (method === 'magic') {
-        const { error } = await supabase.auth.signInWithOtp({
+        let didTimeout = false;
+        const signInPromise = supabase.auth.signInWithOtp({
           email,
           options: {
             emailRedirectTo: window.location.origin,
           }
         });
-        if (error) throw error;
+
+        try {
+          const { error } = await Promise.race([
+            signInPromise,
+            new Promise<never>((_, reject) => setTimeout(() => {
+              didTimeout = true;
+              reject(new Error('Request timed out. Please try again.'));
+            }, 20000)),
+          ]);
+          if (error) throw error;
+        } catch (e: any) {
+          if (didTimeout) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              setLoading(false);
+              Promise.resolve(onLogin(email));
+              return;
+            }
+          }
+          throw e;
+        }
+
         setMagicSent(true);
+        setLoading(false);
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        let didTimeout = false;
+        const signInPromise = supabase.auth.signInWithPassword({
           email,
           password,
         });
-        if (error) throw error;
+
+        try {
+          const { error } = await Promise.race([
+            signInPromise,
+            new Promise<never>((_, reject) => setTimeout(() => {
+              didTimeout = true;
+              reject(new Error('Request timed out. Please try again.'));
+            }, 20000)),
+          ]);
+          if (error) throw error;
+        } catch (e: any) {
+          if (didTimeout) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              setLoading(false);
+              Promise.resolve(onLogin(email));
+              return;
+            }
+          }
+          throw e;
+        }
         
         // Reset loading immediately - onAuthStateChange will handle navigation
         setLoading(false);
         
         // Call onLogin (non-blocking) - it will navigate via onAuthStateChange
-        onLogin(email).catch(err => {
+        Promise.resolve(onLogin(email)).catch(err => {
           console.error('Error in onLogin:', err);
           // If onLogin fails, navigate manually as fallback
           setTimeout(() => {

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,7 +30,9 @@
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;900&family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;900&family=Manrope:wght@400..800&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       /* Dark Mode (Default) */
@@ -41,7 +44,7 @@
       --text-muted: #737373;
       --glass-bg: rgba(23, 23, 23, 0.6);
     }
-    
+
     [data-theme="light"] {
       /* Grey Themed Light Mode */
       --bg-main: #e5e5e5;
@@ -61,11 +64,17 @@
       overflow-x: hidden;
       transition: background-color 0.3s ease, color 0.3s ease;
     }
-    h1, h2, h3, h4, .heading-font {
+
+    h1,
+    h2,
+    h3,
+    h4,
+    .heading-font {
       font-family: 'Manrope', sans-serif;
       font-weight: 800;
       letter-spacing: -0.02em;
     }
+
     .metadata-label {
       font-family: 'Inter', sans-serif;
       font-weight: 900;
@@ -73,24 +82,72 @@
       letter-spacing: 0.35em;
       font-size: 9px;
     }
-    .accent-red-text { color: var(--accent-red); }
-    .bg-accent-red { background-color: var(--accent-red); }
-    
+
+    .accent-red-text {
+      color: var(--accent-red);
+    }
+
+    .bg-accent-red {
+      background-color: var(--accent-red);
+    }
+
     .glass-surface {
       background: var(--glass-bg);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
     }
 
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: var(--bg-main); }
-    ::-webkit-scrollbar-thumb { background: #404040; border-radius: 2px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--accent-red); }
+    .admin-input {
+      background-color: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--accent-red);
+      padding: 0.75rem 1rem;
+      border-radius: 2px;
+      width: 100%;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .admin-input:focus {
+      outline: none;
+      border-color: var(--accent-red);
+      background-color: rgba(220, 38, 38, 0.05);
+      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
+    }
+
+    .admin-input::placeholder {
+      color: #404040;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      font-weight: 800;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-main);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #404040;
+      border-radius: 2px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-red);
+    }
   </style>
   <!-- Removed importmap - using Vite's local node_modules resolution instead -->
 </head>
+
 <body>
   <div id="root"></div>
   <script type="module" src="./index.tsx"></script>
 </body>
+
 </html>

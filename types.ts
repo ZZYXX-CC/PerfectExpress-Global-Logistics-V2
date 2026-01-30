@@ -15,6 +15,11 @@ export interface Shipment {
   items: ShipmentItem[];
   sender: AddressInfo;
   recipient: AddressInfo;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  createdAt?: string;
 }
 
 export interface ShipmentItem {
@@ -30,6 +35,7 @@ export interface AddressInfo {
   street: string;
   city: string;
   country: string;
+  email?: string;
 }
 
 export interface ShipmentEvent {

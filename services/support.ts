@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { notificationService } from './notificationService';
+import { emailService } from './emailService';
 
 export interface SupportTicket {
     id: string;
@@ -67,8 +69,14 @@ export const createTicket = async (data: {
 
     if (replyError) {
         console.error('Error creating initial reply:', replyError);
-        // Non-fatal
     }
+
+    // 3. Notify Admins
+    await notificationService.notifyAdmins(
+        'New Support Ticket',
+        `A new ticket (${ticketNumber}) has been created by ${data.name}: ${data.subject}`,
+        `/dashboard?tab=support`
+    );
 
     return { success: true, ticket };
 };
@@ -127,6 +135,60 @@ export const addReply = async (ticketId: string, message: string, senderType: 'c
         .single();
 
     if (error) throw error;
+
+    // Trigger notification if admin replies to customer
+    if (senderType === 'admin') {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const { data: ticket } = await supabase.from('support_tickets').select('user_id, ticket_number').eq('id', ticketId).single();
+        if (ticket?.user_id && ticket.user_id !== currentUser?.id) {
+            const { error: notifError } = await notificationService.createNotification({
+                user_id: ticket.user_id,
+                type: 'ticket_reply',
+                title: 'New Support Signal',
+                message: `Agent ${senderName} replied to ticket ${ticket.ticket_number}.`,
+                link: `/dashboard/tickets/${ticketId}`
+            });
+
+            // Email Notification
+            const { data: userProfile } = await supabase.from('profiles').select('email').eq('id', ticket.user_id).single();
+            if (userProfile) {
+                await emailService.sendEmail({
+                    to: userProfile.email,
+                    ...emailService.templates.supportReply(ticket.ticket_number, message)
+                });
+            }
+
+            if (notifError) console.error('Notification trigger failed:', notifError);
+        } else {
+            console.log('Notification suppressed: Self-reply or missing owner', { ticketOwnerId: ticket?.user_id, currentUserId: currentUser?.id });
+        }
+    } else {
+        // Trigger notification for ALL admins when a customer replies
+        const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+        if (admins) {
+            for (const admin of admins) {
+                const { error: notifError } = await notificationService.createNotification({
+                    user_id: admin.id,
+                    type: 'ticket_reply',
+                    title: 'Customer Response',
+                    message: `${senderName} replied to ticket.`,
+                    link: `/dashboard/tickets/${ticketId}`
+                });
+
+                // Email Notification for Admins
+                const { data: adminProfile } = await supabase.from('profiles').select('email').eq('id', admin.id).single();
+                if (adminProfile) {
+                    await emailService.sendEmail({
+                        to: adminProfile.email,
+                        ...emailService.templates.supportReply('CUSTOMER_REPLY', message)
+                    });
+                }
+
+                if (notifError) console.error(`Admin notification failed for ${admin.id}:`, notifError);
+            }
+        }
+    }
+
     return data;
 };
 
@@ -139,5 +201,20 @@ export const updateTicketStatus = async (ticketId: string, status: SupportTicket
         .single();
 
     if (error) throw error;
+
+    // Trigger notification if status changes
+    if (data.user_id) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (data.user_id !== user?.id) {
+            await notificationService.createNotification({
+                user_id: data.user_id,
+                type: 'ticket_reply',
+                title: 'Ticket Status Update',
+                message: `Ticket ${data.ticket_number} status changed to ${status.toUpperCase().replace('_', ' ')}.`,
+                link: `/dashboard/tickets/${ticketId}`
+            });
+        }
+    }
+
     return data;
 };

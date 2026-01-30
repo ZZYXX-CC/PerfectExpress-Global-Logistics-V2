@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { createTicket, getUserTickets, SupportTicket } from '../services/support';
 import { supabase } from '../services/supabase';
 
 const SupportPage: React.FC = () => {
+  const navigate = useNavigate();
   const [formState, setFormState] = useState({ name: '', email: '', message: '', subject: 'General Inquiry' });
   const [isSent, setIsSent] = useState(false);
+  const [createdTicketNumber, setCreatedTicketNumber] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +56,7 @@ const SupportPage: React.FC = () => {
 
     if (result.success) {
       setIsSent(true);
+      setCreatedTicketNumber(result.ticket?.ticket_number || 'New');
       if (user) loadUserTickets(user.id); // Refresh list
     } else {
       setError(result.error || "Failed to create ticket. Please try again.");
@@ -109,13 +113,20 @@ const SupportPage: React.FC = () => {
                     <p className="text-xs text-textMuted">No active tickets.</p>
                   ) : (
                     myTickets.map(t => (
-                      <div key={t.id} className="p-3 bg-bgMain rounded-sm border border-borderColor">
+                      <div
+                        key={t.id}
+                        onClick={() => navigate(`/dashboard/tickets/${t.id}`)}
+                        className="p-3 bg-bgMain rounded-sm border border-borderColor hover:border-red-600 transition-all cursor-pointer group"
+                      >
                         <div className="flex justify-between items-start mb-1">
                           <span className="text-[10px] font-bold text-red-500">{t.ticket_number}</span>
                           <span className="text-[9px] uppercase tracking-wider text-textMuted">{t.status}</span>
                         </div>
                         <p className="text-xs font-bold text-textMain truncate">{t.subject}</p>
-                        <p className="text-[10px] text-textMuted mt-1">{new Date(t.created_at).toLocaleDateString()}</p>
+                        <div className="flex justify-between items-center mt-1">
+                          <p className="text-[10px] text-textMuted">{new Date(t.created_at).toLocaleDateString()}</p>
+                          <iconify-icon icon="solar:arrow-right-linear" class="text-textMuted group-hover:text-red-600 transition-colors"></iconify-icon>
+                        </div>
                       </div>
                     ))
                   )}
@@ -136,13 +147,23 @@ const SupportPage: React.FC = () => {
                   <iconify-icon icon="solar:check-circle-linear" width="40"></iconify-icon>
                 </div>
                 <h3 className="text-2xl font-black heading-font uppercase text-textMain mb-2">Transmission Received</h3>
-                <p className="text-textMuted text-sm font-medium">Our team is reviewing your message.</p>
-                <button
-                  onClick={() => { setIsSent(false); setFormState(prev => ({ ...prev, message: '', subject: 'General Inquiry' })); }}
-                  className="mt-8 text-[10px] font-black uppercase tracking-widest text-red-600 hover:text-red-500"
-                >
-                  Create New Ticket
-                </button>
+                <p className="text-textMuted text-sm font-medium">Ticket #{createdTicketNumber} has been logged in our systems.</p>
+                <div className="flex gap-4 mt-8">
+                  <button
+                    onClick={() => { setIsSent(false); setFormState(prev => ({ ...prev, message: '', subject: 'General Inquiry' })); }}
+                    className="text-[10px] font-black uppercase tracking-widest text-textMuted hover:text-white transition-colors border border-borderColor px-6 py-3"
+                  >
+                    New Message
+                  </button>
+                  {user && (
+                    <button
+                      onClick={() => navigate('/dashboard')}
+                      className="text-[10px] font-black uppercase tracking-widest bg-red-600 text-white px-6 py-3"
+                    >
+                      View All Tickets
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-8">

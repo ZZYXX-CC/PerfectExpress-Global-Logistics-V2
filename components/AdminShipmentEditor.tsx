@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import { Shipment, AddressInfo, ShipmentItem } from '../types';
 import { supabase } from '../services/supabase';
+import { useToast } from './ui/Toast';
 
 interface AdminShipmentEditorProps {
     shipment?: Shipment | null;
@@ -11,6 +12,7 @@ interface AdminShipmentEditorProps {
 }
 
 const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onSave, onCancel }) => {
+    const toast = useToast();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         senderName: '',
@@ -21,7 +23,13 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
         receiverAddress: '',
         weight: '',
         description: '',
-        serviceType: 'Standard'
+        serviceType: 'Standard',
+        // New fields
+        status: 'pending',
+        price: '',
+        currentLocation: '',
+        createdAt: '',
+        paymentStatus: 'unpaid'
     });
 
     useEffect(() => {
@@ -30,17 +38,28 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
             const senderInfo = (shipment as any).sender_info || {};
             const receiverInfo = (shipment as any).receiver_info || {};
             const parcelDetails = (shipment as any).parcel_details || {};
+            const raw = shipment as any;
+
+            // Format date for datetime-local input
+            const createdDate = shipment.createdAt || (shipment as any).created_at || shipment.estimatedArrival || '';
+            const formattedDate = createdDate ? new Date(createdDate).toISOString().slice(0, 16) : '';
 
             setFormData({
                 senderName: senderInfo.name || shipment.sender?.name || '',
-                senderEmail: senderInfo.email || '',
+                senderEmail: senderInfo.email || shipment.sender?.email || '',
                 senderAddress: senderInfo.address || shipment.sender?.street || '',
                 receiverName: receiverInfo.name || shipment.recipient?.name || '',
-                receiverEmail: receiverInfo.email || '',
+                receiverEmail: receiverInfo.email || shipment.recipient?.email || '',
                 receiverAddress: receiverInfo.address || shipment.recipient?.street || '',
                 weight: parcelDetails.weight || shipment.weight?.replace(' kg', '') || '',
                 description: parcelDetails.description || shipment.items?.[0]?.description || '',
-                serviceType: shipment.serviceType || 'Standard'
+                serviceType: shipment.serviceType || 'Standard',
+                // New fields
+                status: shipment.status || 'pending',
+                price: (shipment.price || raw.price)?.toString() || '',
+                currentLocation: shipment.currentLocation || raw.current_location || '',
+                createdAt: formattedDate,
+                paymentStatus: shipment.paymentStatus || raw.payment_status || 'unpaid'
             });
         }
     }, [shipment]);
@@ -53,7 +72,7 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
         e.preventDefault();
         setLoading(true);
 
-        const payload = {
+        const payload: Record<string, any> = {
             sender_info: {
                 name: formData.senderName,
                 email: formData.senderEmail,
@@ -69,9 +88,21 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
                 description: formData.description
             },
             service_type: formData.serviceType,
-            status: shipment ? shipment.status : 'pending',
+            status: formData.status,
+            current_location: formData.currentLocation,
+            payment_status: formData.paymentStatus,
             updated_at: new Date().toISOString()
         };
+
+        // Add price if provided
+        if (formData.price) {
+            payload.price = parseFloat(formData.price);
+        }
+
+        // Add created_at if editing
+        if (shipment && formData.createdAt) {
+            payload.created_at = new Date(formData.createdAt).toISOString();
+        }
 
         try {
             if (shipment) {
@@ -94,9 +125,10 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
                 if (error) throw error;
             }
             onSave();
+            toast.showSuccess('Saved', shipment ? 'Shipment updated' : 'Shipment created');
         } catch (error) {
             console.error('Error saving shipment:', error);
-            alert('Failed to save shipment.');
+            toast.showError('Error', 'Failed to save shipment.');
         } finally {
             setLoading(false);
         }
@@ -236,6 +268,35 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
                                 <option value="Express">Express Air</option>
                                 <option value="Luxury">Secure / Luxury</option>
                             </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Administrative Details */}
+                <div className="md:col-span-2 space-y-6 mt-4">
+                    <h3 className="metadata-label text-textMuted border-b border-borderColor pb-2 mb-4">Administrative Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="metadata-label text-textMuted mb-1 block">Quoted Price ($)</label>
+                            <input
+                                name="price"
+                                value={formData.price}
+                                onChange={handleChange}
+                                type="number"
+                                step="0.01"
+                                className="w-full bg-bgSurface border border-borderColor p-3 rounded-sm text-sm font-bold text-textMain focus:border-red-600 focus:outline-none"
+                                placeholder="0.00"
+                            />
+                        </div>
+                        <div>
+                            <label className="metadata-label text-textMuted mb-1 block">Created Date</label>
+                            <input
+                                name="createdAt"
+                                value={formData.createdAt}
+                                onChange={handleChange}
+                                type="datetime-local"
+                                className="w-full bg-bgSurface border border-borderColor p-3 rounded-sm text-sm font-bold text-textMain focus:border-red-600 focus:outline-none"
+                            />
                         </div>
                     </div>
                 </div>
