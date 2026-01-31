@@ -81,6 +81,19 @@ const AppContent: React.FC = () => {
   const [theme, setTheme] = useState('dark');
 
   useEffect(() => {
+    // Show loader briefly on every navigation
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 400); // 400ms is usually enough for the transition feel
+
+    // Scroll to top on navigation
+    window.scrollTo(0, 0);
+
+    return () => clearTimeout(timer);
+  }, [location.pathname]);
+
+  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 

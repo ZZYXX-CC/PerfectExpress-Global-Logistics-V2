@@ -1,9 +1,22 @@
 'use client'
 
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import { Icon } from '@iconify/react'
 import L from 'leaflet'
 import { useEffect } from 'react'
+
+// Sub-component to handle map resize invalidation
+function ResizeMap() {
+    const map = useMap()
+    useEffect(() => {
+        // Short delay to ensure animations/layout are finished
+        const timer = setTimeout(() => {
+            map.invalidateSize()
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [map])
+    return null
+}
 
 // Fix for default marker icons in Leaflet + Vite/React
 const DefaultIcon = L.icon({
@@ -69,21 +82,31 @@ export default function TrackingMap({
     // This is a common pattern for Leaflet in React
     const mapKey = `${center[0]}-${center[1]}`
 
+    // Custom pulsing marker icon
+    const pulsingIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="map-marker-container"><div class="map-pulse"></div></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+    })
+
     return (
-        <div className={`rounded-sm overflow-hidden border border-borderColor bg-bgSurface ${className}`} style={{ minHeight: '400px' }}>
+        <div className={`rounded-sm overflow-hidden border border-borderColor bg-bgSurface ${className}`} style={{ height: '400px', width: '100%', position: 'relative' }}>
             <MapContainer
                 key={mapKey}
                 center={center}
                 zoom={13}
                 scrollWheelZoom={false}
+                attributionControl={false}
                 style={{ height: '100%', width: '100%', zIndex: 1 }}
                 className="z-0"
             >
+                <ResizeMap />
                 <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                    url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 />
-                <Marker position={center}>
+                <Marker position={center} icon={pulsingIcon}>
                     <Popup>
                         <div className="text-xs font-bold">
                             <p className="text-red-600 uppercase mb-1">{status || 'Shipment Location'}</p>
