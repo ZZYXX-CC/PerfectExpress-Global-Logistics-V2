@@ -1,6 +1,7 @@
 import { GoogleGenAI, Content } from "@google/genai";
 import { Shipment } from "../types";
 import { supabase } from "./supabase";
+import { mapShipmentRow } from "./shipmentUtils";
 
 // Lazy initialization to prevent app crash if API key is missing
 let ai: GoogleGenAI | null = null;
@@ -50,44 +51,12 @@ export const fetchRealShipment = async (id: string): Promise<Shipment | null> =>
     return null;
   }
 
-  // Extract from JSONB or fallback to empty object
-  const senderInfo = data.sender_info || {};
-  const receiverInfo = data.receiver_info || {};
-  const parcelDetails = data.parcel_details || {};
-
-  // Map database format to UI format
-  return {
-    id: data.tracking_number,
-    status: data.status,
-    origin: senderInfo.address || 'Unknown',
-    destination: receiverInfo.address || 'Unknown',
-    estimatedArrival: data.estimated_delivery ? new Date(data.estimated_delivery).toLocaleDateString() : 'TBD',
-    currentLocation: data.current_location || 'Pending',
-    weight: parcelDetails.weight ? (parcelDetails.weight + " kg") : (data.weight ? (data.weight + " kg") : '0 kg'),
-    dimensions: data.dimensions || 'N/A',
-    serviceType: data.service_type || 'Standard',
-    history: data.history || [],
-    items: data.items || [{ description: parcelDetails.description || 'Shipment Items', quantity: 1, value: data.price || '0', sku: 'GENERIC' }],
-    sender: {
-      name: senderInfo.name || 'Unknown',
-      street: senderInfo.address || 'Unknown',
-      city: '',
-      country: ''
-    },
-    recipient: {
-      name: receiverInfo.name || 'Unknown',
-      street: receiverInfo.address || 'Unknown',
-      city: '',
-      country: ''
-    },
-    price: data.price,
-    paymentStatus: data.payment_status
-  };
+  return mapShipmentRow(data);
 };
 
 export const generateMockShipment = (id: string): Shipment => {
   // Keeping this for fallback or internal testing if needed
-  const statuses: Shipment['status'][] = ['in-transit', 'out-for-delivery', 'pending', 'delivered'];
+  const statuses: Shipment['status'][] = ['pending', 'quoted', 'confirmed', 'in-transit', 'out-for-delivery', 'delivered'];
   const status = statuses[Math.floor(Math.random() * statuses.length)];
 
   return {

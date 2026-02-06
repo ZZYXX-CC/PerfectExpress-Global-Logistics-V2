@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Shipment, User } from '../types';
@@ -15,28 +15,57 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onTrack, onNavigate
    const [shipments, setShipments] = useState<Shipment[]>([]);
    const [loading, setLoading] = useState(true);
 
+   const loadShipments = useCallback(async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+         setLoading(false);
+         return;
+      }
+
+      const { data } = await supabase
+         .from('shipments')
+         .select('tracking_number')
+         .eq('user_id', authUser.id)
+         .order('created_at', { ascending: false });
+
+      if (data) {
+         const fetchedShipments = await Promise.all(
+            data.map(s => fetchRealShipment(s.tracking_number))
+         );
+         setShipments(fetchedShipments.filter(Boolean) as Shipment[]);
+      }
+      setLoading(false);
+   }, []);
+
    useEffect(() => {
-      const loadShipments = async () => {
+      loadShipments();
+   }, [loadShipments]);
+
+   useEffect(() => {
+      let channel: ReturnType<typeof supabase.channel> | null = null;
+
+      const subscribe = async () => {
          const { data: { user: authUser } } = await supabase.auth.getUser();
          if (!authUser) return;
 
-         const { data, error } = await supabase
-            .from('shipments')
-            .select('tracking_number')
-            .eq('user_id', authUser.id)
-            .order('created_at', { ascending: false });
-
-         if (data) {
-            const fetchedShipments = await Promise.all(
-               data.map(s => fetchRealShipment(s.tracking_number))
-            );
-            setShipments(fetchedShipments.filter(Boolean) as Shipment[]);
-         }
-         setLoading(false);
+         channel = supabase
+            .channel(`realtime_shipments_${authUser.id}`)
+            .on(
+               'postgres_changes',
+               { event: '*', schema: 'public', table: 'shipments', filter: `user_id=eq.${authUser.id}` },
+               () => {
+                  loadShipments();
+               }
+            )
+            .subscribe();
       };
 
-      loadShipments();
-   }, []);
+      subscribe();
+
+      return () => {
+         if (channel) supabase.removeChannel(channel);
+      };
+   }, [loadShipments]);
 
    const spendData = [
       { month: 'JAN', amount: 450 },
@@ -67,7 +96,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onTrack, onNavigate
                <div className="mt-6 md:mt-0 flex gap-4">
                   <div className="text-right">
                      <p className="text-[9px] font-black uppercase tracking-widest text-textMuted mb-1">Account ID</p>
-                     <p className="text-sm font-bold text-textMain">PX-{Math.floor(Math.random() * 900000) + 100000}</p>
+                     <p className="text-sm font-bold text-textMain">PFX-{Math.floor(Math.random() * 900000) + 100000}</p>
                   </div>
                   <div className="text-right border-l border-borderColor pl-4">
                      <p className="text-[9px] font-black uppercase tracking-widest text-textMuted mb-1">Plan Tier</p>

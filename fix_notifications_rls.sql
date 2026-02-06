@@ -29,6 +29,11 @@ FOR INSERT WITH CHECK (
   )
 );
 
+-- Allow users to create notifications for themselves (client-side inserts)
+DROP POLICY IF EXISTS "Users can create notifications" ON public.notifications;
+CREATE POLICY "Users can create notifications" ON public.notifications
+FOR INSERT WITH CHECK (auth.uid() = user_id);
+
 -- 2. ENSURE USERS CAN VIEW OWN
 DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
 CREATE POLICY "Users can view their own notifications" ON public.notifications

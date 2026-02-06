@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { notificationService } from './notificationService';
+import { generateTrackingNumber } from './shipmentUtils';
+import { emailService } from './emailService';
 
 export interface ShipmentData {
     sender_info: {
@@ -22,9 +24,7 @@ export interface ShipmentData {
     };
 }
 
-export const generateTrackingNumber = () => {
-    return `PX-${Math.floor(10000000 + Math.random() * 90000000)}`;
-};
+export { generateTrackingNumber };
 
 export const createShipment = async (data: ShipmentData) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -63,8 +63,34 @@ export const createShipment = async (data: ShipmentData) => {
         .select()
         .single();
 
-    // Trigger Notifications
+    if (error || !shipment) {
+        console.error('Error creating shipment:', error);
+        return { error: 'Failed to create shipment. Please try again.' };
+    }
+
+    // Trigger Notifications (Sender + Admins)
     await notificationService.sendNewShipmentNotifications(shipment);
+
+    // Receiver Notifications (Email + In-App if receiver is a user)
+    const receiverEmail = data.receiver_info.email?.trim();
+    const senderName = data.sender_info.name || 'PerfectExpress Customer';
+    if (receiverEmail && receiverEmail.toLowerCase() !== (data.sender_info.email || '').trim().toLowerCase()) {
+        await notificationService.notifyUserByEmail(receiverEmail, {
+            type: 'shipment_update',
+            title: 'Incoming Shipment',
+            message: `${senderName} created a shipment to you. Tracking: ${trackingNumber}.`,
+            link: `/track/${trackingNumber}`
+        });
+
+        await emailService.sendEmail({
+            to: receiverEmail,
+            ...emailService.templates.receiverShipmentNotification(
+                trackingNumber,
+                data.receiver_info.name || 'Customer',
+                senderName
+            )
+        });
+    }
 
     return { success: true, trackingNumber: shipment.tracking_number };
 };

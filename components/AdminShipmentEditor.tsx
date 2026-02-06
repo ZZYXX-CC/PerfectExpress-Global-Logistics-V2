@@ -4,6 +4,9 @@ import { Icon } from '@iconify/react';
 import { Shipment, AddressInfo, ShipmentItem } from '../types';
 import { supabase } from '../services/supabase';
 import { useToast } from './ui/Toast';
+import { generateTrackingNumber } from '../services/shipmentUtils';
+import { notificationService } from '../services/notificationService';
+import { emailService } from '../services/emailService';
 
 interface AdminShipmentEditorProps {
     shipment?: Shipment | null;
@@ -111,8 +114,18 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
                 if (error) throw error;
             } else {
                 // Generate tracking number for new shipments
-                const trackingNumber = `PFX-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-                const { error } = await supabase.from('shipments').insert([{
+                const trackingNumber = generateTrackingNumber();
+                const senderEmail = formData.senderEmail?.trim();
+                const receiverEmail = formData.receiverEmail?.trim();
+                const ownerProfile =
+                    (senderEmail ? await notificationService.findProfileByEmail(senderEmail) : null) ||
+                    (receiverEmail ? await notificationService.findProfileByEmail(receiverEmail) : null);
+
+                if (ownerProfile?.id) {
+                    payload.user_id = ownerProfile.id;
+                }
+
+                const { data: createdShipment, error } = await supabase.from('shipments').insert([{
                     ...payload,
                     tracking_number: trackingNumber,
                     history: [{
@@ -121,8 +134,30 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
                         note: 'Shipment manifest created',
                         timestamp: new Date().toISOString()
                     }]
-                }]);
+                }]).select().single();
                 if (error) throw error;
+
+                if (createdShipment) {
+                    await notificationService.sendNewShipmentNotifications(createdShipment);
+
+                    if (receiverEmail && receiverEmail.toLowerCase() !== (senderEmail || '').toLowerCase()) {
+                        await notificationService.notifyUserByEmail(receiverEmail, {
+                            type: 'shipment_update',
+                            title: 'Incoming Shipment',
+                            message: `${formData.senderName || 'A sender'} created a shipment to you. Tracking: ${trackingNumber}.`,
+                            link: `/track/${trackingNumber}`
+                        });
+
+                        await emailService.sendEmail({
+                            to: receiverEmail,
+                            ...emailService.templates.receiverShipmentNotification(
+                                trackingNumber,
+                                formData.receiverName || 'Customer',
+                                formData.senderName || 'PerfectExpress Customer'
+                            )
+                        });
+                    }
+                }
             }
             onSave();
             toast.showSuccess('Saved', shipment ? 'Shipment updated' : 'Shipment created');

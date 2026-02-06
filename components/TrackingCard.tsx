@@ -14,22 +14,35 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
   const [currentStatus, setCurrentStatus] = useState<Shipment['status'] | null>(null);
   const [trackError, setTrackError] = useState<string | null>(null);
 
+  const statusOrder: Shipment['status'][] = [
+    'pending',
+    'quoted',
+    'confirmed',
+    'in-transit',
+    'out-for-delivery',
+    'delivered'
+  ];
+
   const getProgress = (status: Shipment['status']) => {
-    switch(status) {
-      case 'pending': return 25;
-      case 'in-transit': return 50;
-      case 'out-for-delivery': return 75;
-      case 'delivered': return 100;
-      default: return 0;
-    }
+    if (status === 'held') return 60;
+    if (status === 'cancelled') return 0;
+
+    const index = statusOrder.indexOf(status);
+    if (index === -1) return 0;
+    const base = Math.round((index / (statusOrder.length - 1)) * 100);
+    return index === 0 ? 10 : base;
   };
 
   const getProgressLabel = (status: Shipment['status']) => {
-     switch(status) {
-      case 'pending': return 'Order Processing';
-      case 'in-transit': return 'In Transit Network';
-      case 'out-for-delivery': return 'Last Mile Delivery';
-      case 'delivered': return 'Package Delivered';
+    switch(status) {
+      case 'pending': return 'Order Created';
+      case 'quoted': return 'Awaiting Payment';
+      case 'confirmed': return 'Payment Confirmed';
+      case 'in-transit': return 'In Transit';
+      case 'out-for-delivery': return 'Out for Delivery';
+      case 'delivered': return 'Delivered';
+      case 'held': return 'On Hold';
+      case 'cancelled': return 'Cancelled';
       default: return 'Tracking...';
     }
   };
@@ -71,7 +84,7 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
              </div>
              <input
               type="text"
-              placeholder="ENTER SHIPMENT REFERENCE (PX-XXXXXXXX)"
+              placeholder="ENTER SHIPMENT REFERENCE (PFX-XXXXXXXX)"
               className="w-full bg-bgMain/60 border-none rounded-sm pl-14 pr-6 py-5 focus:ring-1 focus:ring-textMuted outline-none transition-all text-textMain font-bold uppercase tracking-widest text-[10px]"
               value={trackingId}
               onChange={(e) => setTrackingId(e.target.value)}
@@ -139,15 +152,22 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
                       </motion.div>
                    </div>
                    <div className="flex justify-between mt-2">
-                      {(['pending', 'in-transit', 'out-for-delivery', 'delivered'] as Shipment['status'][]).map((step) => {
-                         const stepProgress = getProgress(step);
+                      {([
+                         { status: 'pending', label: 'order created' },
+                         { status: 'quoted', label: 'awaiting payment' },
+                         { status: 'confirmed', label: 'payment confirmed' },
+                         { status: 'in-transit', label: 'in transit' },
+                         { status: 'out-for-delivery', label: 'out for delivery' },
+                         { status: 'delivered', label: 'delivered' }
+                      ] as { status: Shipment['status']; label: string }[]).map((step) => {
+                         const stepProgress = getProgress(step.status);
                          const currentProgress = getProgress(currentStatus);
                          const isActive = currentProgress >= stepProgress;
                          
                          return (
-                           <div key={step} className={`flex flex-col items-center gap-1 transition-colors duration-500 ${isActive ? 'text-textMain' : 'text-textMuted/30'}`}>
+                           <div key={step.status} className={`flex flex-col items-center gap-1 transition-colors duration-500 ${isActive ? 'text-textMain' : 'text-textMuted/30'}`}>
                               <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-red-600' : 'bg-current'}`}></div>
-                              <span className="hidden md:block text-[8px] font-bold uppercase tracking-wider">{step.replace(/-/g, ' ')}</span>
+                              <span className="hidden md:block text-[8px] font-bold uppercase tracking-wider">{step.label}</span>
                            </div>
                          )
                       })}

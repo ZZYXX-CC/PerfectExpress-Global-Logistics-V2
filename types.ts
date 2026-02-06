@@ -43,6 +43,9 @@ export interface ShipmentEvent {
   time: string;
   location: string;
   description: string;
+  status?: string;
+  timestamp?: string;
+  note?: string;
 }
 
 export interface QuoteRequest {

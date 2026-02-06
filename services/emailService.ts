@@ -25,6 +25,13 @@ export const emailService = {
                 html: `<h1>Shipment Registered</h1><p>Hello ${recipientName},</p><p>Your shipment <strong>${trackingNumber}</strong> has been successfully created. View it <a href="/track/${trackingNumber}">here</a>.</p>`
             };
         },
+        receiverShipmentNotification(trackingNumber: string, receiverName: string, senderName: string) {
+            return {
+                subject: `PerfectExpress | Incoming Shipment: ${trackingNumber}`,
+                text: `Hello ${receiverName}, ${senderName} has created a shipment to you. Track it with ${trackingNumber}.`,
+                html: `<h1>Incoming Shipment</h1><p>Hello ${receiverName},</p><p><strong>${senderName}</strong> has created a shipment to you.</p><p>Tracking: <strong>${trackingNumber}</strong></p><p>Track it <a href="/track/${trackingNumber}">here</a>.</p>`
+            };
+        },
         adminNewShipmentAlert(trackingNumber: string, userName: string) {
             return {
                 subject: `ADMIN ALERT | New Shipment Submission: ${trackingNumber}`,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ShipmentDetails from './ShipmentDetails';
@@ -17,34 +17,54 @@ const TrackingPage: React.FC<TrackingPageProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadShipment = async () => {
-      if (!id) {
-        setError('No tracking number provided');
-        setLoading(false);
-        return;
+  const loadShipment = useCallback(async () => {
+    if (!id) {
+      setError('No tracking number provided');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const fetchedShipment = await fetchRealShipment(id);
+      if (fetchedShipment) {
+        setShipment(fetchedShipment);
+      } else {
+        setError('Shipment not found');
       }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const fetchedShipment = await fetchRealShipment(id);
-        if (fetchedShipment) {
-          setShipment(fetchedShipment);
-        } else {
-          setError('Shipment not found');
-        }
-      } catch (err) {
-        console.error('Error loading shipment:', err);
-        setError('Failed to load shipment details');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadShipment();
+    } catch (err) {
+      console.error('Error loading shipment:', err);
+      setError('Failed to load shipment details');
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadShipment();
+  }, [loadShipment]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const trackingNumber = id.toUpperCase();
+    const channel = supabase
+      .channel(`realtime_shipment_${trackingNumber}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shipments', filter: `tracking_number=eq.${trackingNumber}` },
+        () => {
+          loadShipment();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, loadShipment]);
 
   if (loading) {
     return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, ResponsiveContainer, XAxis, Tooltip } from 'recharts';
@@ -9,6 +9,7 @@ import AdminUserEditor from './AdminUserEditor';
 import AdminStatusUpdater from './AdminStatusUpdater';
 import { getAllTickets, SupportTicket, updateTicketStatus } from '../services/support';
 import { deleteShipment, updateShipment, logShipmentEvent, getAllUsers, updateUserRole, UserProfile, inviteUser } from '../services/adminService';
+import { mapShipmentRow } from '../services/shipmentUtils';
 import { useToast } from './ui/Toast';
 import { useConfirm } from './ui/ConfirmDialog';
 
@@ -70,54 +71,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       { time: '20:00', vol: 180 },
    ];
 
-   useEffect(() => {
-      loadData();
-   }, []);
-
-   const loadData = async () => {
+   const loadData = useCallback(async () => {
       setLoading(true);
 
       // Fetch Shipments
       const { data: shipmentData, error: shipError } = await supabase.from('shipments').select('*').order('created_at', { ascending: false });
 
       if (shipmentData) {
-         // Map raw DB data to Frontend Shipment type
-         const mappedShipments: Shipment[] = shipmentData.map(data => {
-            const senderInfo = data.sender_info || {};
-            const receiverInfo = data.receiver_info || {};
-            const parcelDetails = data.parcel_details || {};
-
-            return {
-               id: data.tracking_number || data.id,
-               status: data.status,
-               origin: senderInfo.address || 'Unknown',
-               destination: receiverInfo.address || 'Unknown',
-               estimatedArrival: data.estimated_delivery ? new Date(data.estimated_delivery).toLocaleDateString() : 'TBD',
-               currentLocation: data.current_location || 'Pending',
-               weight: parcelDetails.weight ? (parcelDetails.weight + " kg") : (data.weight ? (data.weight + " kg") : '0 kg'),
-               dimensions: data.dimensions || 'N/A',
-               serviceType: data.service_type || 'Standard',
-               history: data.history || [],
-               items: data.items || [{ description: parcelDetails.description || 'Shipment Items', quantity: 1, value: data.price || '0', sku: 'GENERIC' }],
-               sender: {
-                  name: senderInfo.name || 'Unknown',
-                  street: senderInfo.address || 'Unknown',
-                  city: senderInfo.city || '',
-                  country: senderInfo.country || '',
-                  email: senderInfo.email || ''
-               },
-               recipient: {
-                  name: receiverInfo.name || 'Unknown',
-                  street: receiverInfo.address || 'Unknown',
-                  city: receiverInfo.city || '',
-                  country: receiverInfo.country || '',
-                  email: receiverInfo.email || ''
-               },
-               price: parseFloat(data.price || '0'),
-               createdAt: data.created_at,
-               paymentStatus: data.payment_status
-            };
-         });
+         const mappedShipments: Shipment[] = shipmentData.map(mapShipmentRow);
          setShipments(mappedShipments);
       }
 
@@ -133,7 +94,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       }
 
       setLoading(false);
-   };
+   }, []);
+
+   useEffect(() => {
+      loadData();
+   }, [loadData]);
+
+   useEffect(() => {
+      const channel = supabase
+         .channel('realtime_shipments_admin')
+         .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'shipments' },
+            () => {
+               loadData();
+            }
+         )
+         .subscribe();
+
+      return () => {
+         supabase.removeChannel(channel);
+      };
+   }, [loadData]);
 
    const filteredShipments = shipments.filter(s =>
       s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||

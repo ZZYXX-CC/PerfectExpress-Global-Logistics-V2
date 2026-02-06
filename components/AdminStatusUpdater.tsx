@@ -31,7 +31,8 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
                 currentLocation: shipment.currentLocation || '',
                 paymentStatus: shipment.paymentStatus || 'unpaid',
                 latitude: shipment.coordinates?.lat?.toString() || '',
-                longitude: shipment.coordinates?.lng?.toString() || ''
+                longitude: shipment.coordinates?.lng?.toString() || '',
+                mapLink: ''
             });
         }
     }, [shipment]);
@@ -70,11 +71,15 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
 
         const currentLoc = formData.currentLocation || shipment.currentLocation || 'System';
 
-        const updates: any = {
-            status: formData.status,
-            current_location: currentLoc,
-            payment_status: formData.paymentStatus,
-        };
+        const statusChanged = formData.status !== shipment.status;
+        const locationChanged = formData.currentLocation !== shipment.currentLocation;
+        const paymentChanged = formData.paymentStatus !== (shipment.paymentStatus || 'unpaid');
+
+        const updates: any = {};
+
+        if (paymentChanged) {
+            updates.payment_status = formData.paymentStatus;
+        }
 
         if (formData.latitude && formData.longitude) {
             updates.coordinates = {
@@ -84,8 +89,8 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
         }
 
         try {
-            // If status OR location changed, log it
-            if (formData.status !== shipment.status || formData.currentLocation !== shipment.currentLocation) {
+            // If status OR location changed, log it (handles history + status updates)
+            if (statusChanged || locationChanged) {
                 await logShipmentEvent(shipment.id, {
                     status: formData.status,
                     location: currentLoc,
@@ -95,11 +100,11 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
                 });
             }
 
-            // Update main record
-            // Use tracking_number (shipment.id)
-            const result = await updateShipment(shipment.id, updates);
-
-            if (result.error) throw result.error;
+            // Update any remaining fields (payment status / coordinates)
+            if (Object.keys(updates).length > 0) {
+                const result = await updateShipment(shipment.id, updates);
+                if (result.error) throw result.error;
+            }
 
             toast.showSuccess('Updated', 'Shipment status updated successfully');
             onSave();
@@ -149,10 +154,11 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
                     <button
                         type="button"
                         onClick={() => {
+                            const originLabel = shipment.sender.city || shipment.origin || 'Origin';
                             setFormData(prev => ({
                                 ...prev,
-                                status: 'dispatched',
-                                currentLocation: `${shipment.sender.city} Logistics Center`
+                                status: 'in-transit',
+                                currentLocation: `${originLabel} Logistics Center`
                             }));
                         }}
                         className="p-3 border border-borderColor rounded-sm hover:border-red-600 hover:text-red-600 text-textMuted text-[10px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-2 group"
@@ -163,10 +169,11 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
                     <button
                         type="button"
                         onClick={() => {
+                            const destinationLabel = shipment.recipient.city || shipment.destination || 'Destination';
                             setFormData(prev => ({
                                 ...prev,
                                 status: 'out-for-delivery',
-                                currentLocation: `${shipment.recipient.city} Delivery Hub`
+                                currentLocation: `${destinationLabel} Delivery Hub`
                             }));
                         }}
                         className="p-3 border border-borderColor rounded-sm hover:border-green-600 hover:text-green-600 text-textMuted text-[10px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-2 group"
@@ -186,14 +193,12 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
                             className="w-full bg-bgSurface border border-borderColor p-3 rounded-sm text-sm font-bold text-textMain focus:border-red-600 focus:outline-none uppercase"
                         >
                             <option value="pending">Order Created</option>
-                            <option value="quoted">Manifest Quoted</option>
+                            <option value="quoted">Quote Issued</option>
                             <option value="confirmed">Payment Confirmed</option>
-                            <option value="dispatched">Dispatched from Origin</option>
                             <option value="in-transit">In Transit</option>
-                            <option value="arrived_hub">Arrived at Regional Hub</option>
                             <option value="out-for-delivery">Out for Delivery</option>
                             <option value="delivered">Delivered</option>
-                            <option value="held">Currently Held</option>
+                            <option value="held">Held / Exception</option>
                             <option value="cancelled">Order Cancelled</option>
                         </select>
                     </div>

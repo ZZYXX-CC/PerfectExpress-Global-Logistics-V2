@@ -12,7 +12,31 @@ export interface Notification {
     created_at: string;
 }
 
+export interface ProfileSummary {
+    id: string;
+    email: string;
+    full_name?: string | null;
+}
+
 export const notificationService = {
+    async findProfileByEmail(email: string): Promise<ProfileSummary | null> {
+        const normalized = (email || '').trim().toLowerCase();
+        if (!normalized) return null;
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, email, full_name')
+            .ilike('email', normalized)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error fetching profile by email:', error);
+            return null;
+        }
+
+        return data as ProfileSummary | null;
+    },
+
     async fetchNotifications() {
         const impersonatedId = localStorage.getItem('impersonated_user_id');
         const { data: { user } } = await supabase.auth.getUser();
@@ -62,6 +86,16 @@ export const notificationService = {
         return { data: data as Notification, error };
     },
 
+    async notifyUserByEmail(email: string, payload: Omit<Notification, 'id' | 'is_read' | 'created_at' | 'user_id'>) {
+        const profile = await this.findProfileByEmail(email);
+        if (!profile) return { error: 'User not found for email' };
+
+        return this.createNotification({
+            user_id: profile.id,
+            ...payload
+        });
+    },
+
     async notifyAdmins(title: string, message: string, link?: string) {
         const { data: admins } = await supabase
             .from('profiles')
@@ -88,22 +122,28 @@ export const notificationService = {
     },
 
     async sendNewShipmentNotifications(shipment: any) {
+        if (!shipment?.tracking_number) return;
+
         // 1. Notify User (In-App)
-        await this.createNotification({
-            user_id: shipment.user_id,
-            type: 'shipment_update',
-            title: 'Shipment Registered',
-            message: `Your shipment ${shipment.tracking_number} has been successfully created.`,
-            link: `/track/${shipment.tracking_number}`
-        });
+        if (shipment.user_id) {
+            await this.createNotification({
+                user_id: shipment.user_id,
+                type: 'shipment_update',
+                title: 'Shipment Registered',
+                message: `Your shipment ${shipment.tracking_number} has been successfully created.`,
+                link: `/track/${shipment.tracking_number}`
+            });
+        }
 
         // 2. Notify User (Email)
-        const { data: userProfile } = await supabase.from('profiles').select('email, full_name').eq('id', shipment.user_id).single();
-        if (userProfile) {
-            await emailService.sendEmail({
-                to: userProfile.email,
-                ...emailService.templates.shipmentConfirmation(shipment.tracking_number, userProfile.full_name)
-            });
+        if (shipment.user_id) {
+            const { data: userProfile } = await supabase.from('profiles').select('email, full_name').eq('id', shipment.user_id).single();
+            if (userProfile) {
+                await emailService.sendEmail({
+                    to: userProfile.email,
+                    ...emailService.templates.shipmentConfirmation(shipment.tracking_number, userProfile.full_name)
+                });
+            }
         }
 
         // 3. Notify Admins
