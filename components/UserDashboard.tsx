@@ -179,10 +179,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ user, onTrack, onNavigate
                                     </div>
                                  </div>
                                  <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-                                    <span className={`px-3 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${shipment.status === 'in-transit' ? 'bg-blue-900/20 text-blue-500 border-blue-900/50' :
-                                       shipment.status === 'delivered' ? 'bg-green-900/20 text-green-500 border-green-900/50' :
-                                          shipment.status === 'out-for-delivery' ? 'bg-yellow-900/20 text-yellow-500 border-yellow-900/50' :
-                                             'bg-bgMain text-textMuted border-borderColor'
+                                    <span className={`px-3 py-1 rounded-sm text-[9px] font-black uppercase tracking-widest border ${shipment.status === 'pending' ? 'bg-slate-900/20 text-slate-400 border-slate-700/50' :
+                                       shipment.status === 'quoted' ? 'bg-orange-900/20 text-orange-500 border-orange-900/50' :
+                                          shipment.status === 'confirmed' ? 'bg-purple-900/20 text-purple-500 border-purple-900/50' :
+                                             shipment.status === 'in-transit' ? 'bg-blue-900/20 text-blue-500 border-blue-900/50' :
+                                                shipment.status === 'out-for-delivery' ? 'bg-yellow-900/20 text-yellow-500 border-yellow-900/50' :
+                                                   shipment.status === 'delivered' ? 'bg-green-900/20 text-green-500 border-green-900/50' :
+                                                      shipment.status === 'held' ? 'bg-red-900/20 text-red-500 border-red-900/50' :
+                                                         shipment.status === 'cancelled' ? 'bg-neutral-900/20 text-neutral-500 border-neutral-700/50' :
+                                                            'bg-bgMain text-textMuted border-borderColor'
                                        }`}>
                                        {shipment.status.replace(/-/g, ' ')}
                                     </span>

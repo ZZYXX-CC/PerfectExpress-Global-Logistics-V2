@@ -6,6 +6,18 @@ export type Json =
     | { [key: string]: Json | undefined }
     | Json[]
 
+export type ShipmentStatus =
+    | 'pending'
+    | 'quoted'
+    | 'confirmed'
+    | 'in-transit'
+    | 'out-for-delivery'
+    | 'delivered'
+    | 'held'
+    | 'cancelled'
+
+export type PaymentStatus = 'paid' | 'unpaid'
+
 export type Database = {
     public: {
         Tables: {
@@ -143,11 +155,11 @@ export type Database = {
                     history: Json | null
                     id: string
                     parcel_details: Json
-                    payment_status: string | null
+                    payment_status: PaymentStatus | null
                     price: number | null
                     receiver_info: Json
                     sender_info: Json
-                    status: string | null
+                    status: ShipmentStatus | null
                     tracking_number: string | null
                     updated_at: string | null
                     user_id: string | null
@@ -158,11 +170,11 @@ export type Database = {
                     history?: Json | null
                     id?: string
                     parcel_details?: Json
-                    payment_status?: string | null
+                    payment_status?: PaymentStatus | null
                     price?: number | null
                     receiver_info?: Json
                     sender_info?: Json
-                    status?: string | null
+                    status?: ShipmentStatus | null
                     tracking_number?: string | null
                     updated_at?: string | null
                     user_id?: string | null
@@ -173,11 +185,11 @@ export type Database = {
                     history?: Json | null
                     id?: string
                     parcel_details?: Json
-                    payment_status?: string | null
+                    payment_status?: PaymentStatus | null
                     price?: number | null
                     receiver_info?: Json
                     sender_info?: Json
-                    status?: string | null
+                    status?: ShipmentStatus | null
                     tracking_number?: string | null
                     updated_at?: string | null
                     user_id?: string | null
