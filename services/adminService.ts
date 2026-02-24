@@ -168,12 +168,14 @@ export const togglePaymentStatus = async (id: string, currentStatus: string) => 
 
 // Delete a shipment
 export const deleteShipment = async (trackingNumber: string) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('shipments')
         .delete()
-        .eq('tracking_number', trackingNumber);
+        .eq('tracking_number', trackingNumber)
+        .select('id');
 
-    if (error) return { error: 'Failed to delete shipment' };
+    if (error) return { error: `Failed to delete shipment: ${error.message}` };
+    if (!data || data.length === 0) return { error: 'Delete blocked by permissions. You may not have admin privileges.' };
 
     return { success: true };
 };

@@ -29,6 +29,15 @@ FOR UPDATE USING (
   )
 );
 
+DROP POLICY IF EXISTS "Admins can delete shipments" ON public.shipments;
+CREATE POLICY "Admins can delete shipments" ON public.shipments
+FOR DELETE USING (
+  EXISTS (
+    SELECT 1 FROM public.profiles p 
+    WHERE p.id = auth.uid() AND p.role = 'admin'
+  )
+);
+
 -- 3. FIX SUPPORT TICKETS RLS
 -- Replace problematic auth.users subqueries with auth.jwt()
 DROP POLICY IF EXISTS "Users can view own tickets" ON public.support_tickets;
