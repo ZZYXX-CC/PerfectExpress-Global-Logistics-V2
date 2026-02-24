@@ -38,17 +38,26 @@ const LiveChat: React.FC = () => {
       return;
     }
 
-    setUserId(user.id);
-    setUserEmail(user.email || '');
+    // When impersonating, load the impersonated user's profile for chat
+    const impersonatedId = localStorage.getItem('impersonated_user_id');
+    const targetId = impersonatedId || user.id;
+
+    setUserId(targetId);
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name')
-      .eq('id', user.id)
+      .select('full_name, email')
+      .eq('id', targetId)
       .single();
 
-    const resolvedName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Customer';
-    setUserName(resolvedName);
+    if (impersonatedId && profile) {
+      setUserEmail(profile.email || user.email || '');
+      setUserName(profile.full_name || 'Customer');
+    } else {
+      setUserEmail(user.email || '');
+      const resolvedName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Customer';
+      setUserName(resolvedName);
+    }
   }, []);
 
   const loadLatestSession = useCallback(async (uid: string) => {

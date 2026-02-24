@@ -17,15 +17,26 @@ const SupportPage: React.FC = () => {
   const [myTickets, setMyTickets] = useState<SupportTicket[]>([]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      if (user) {
+    supabase.auth.getUser().then(async ({ data: { user: authUser } }) => {
+      if (!authUser) return;
+      const impersonatedId = localStorage.getItem('impersonated_user_id');
+      if (impersonatedId) {
+        const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', impersonatedId).single();
+        setUser({ ...authUser, id: impersonatedId });
         setFormState(prev => ({
           ...prev,
-          email: user.email || '',
-          name: user.user_metadata?.full_name || ''
+          email: profile?.email || '',
+          name: profile?.full_name || ''
         }));
-        loadUserTickets(user.id);
+        loadUserTickets(impersonatedId);
+      } else {
+        setUser(authUser);
+        setFormState(prev => ({
+          ...prev,
+          email: authUser.email || '',
+          name: authUser.user_metadata?.full_name || ''
+        }));
+        loadUserTickets(authUser.id);
       }
     });
   }, []);

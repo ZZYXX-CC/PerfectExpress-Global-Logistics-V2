@@ -25,8 +25,15 @@ const TicketDetail: React.FC = () => {
         const fetchUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-                setCurrentUser({ id: user.id, email: user.email || '', role: profile?.role || 'client' });
+                const impersonatedId = localStorage.getItem('impersonated_user_id');
+                if (impersonatedId) {
+                    // When impersonating, present as the customer
+                    const { data: impersonatedProfile } = await supabase.from('profiles').select('role, email').eq('id', impersonatedId).single();
+                    setCurrentUser({ id: impersonatedId, email: impersonatedProfile?.email || '', role: impersonatedProfile?.role || 'client' });
+                } else {
+                    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+                    setCurrentUser({ id: user.id, email: user.email || '', role: profile?.role || 'client' });
+                }
             }
         };
         fetchUser();
@@ -53,13 +60,8 @@ const TicketDetail: React.FC = () => {
 
         setSending(true);
         try {
-            // detailed logic to handle "View As" mode
-            const impersonatedId = localStorage.getItem('impersonated_user_id');
-            // If impersonating, we are ACTING as the customer
-            const isImpersonating = !!impersonatedId;
-
-            const senderType = (currentUser.role === 'admin' && !isImpersonating) ? 'admin' : 'customer';
-            const senderName = (currentUser.role === 'admin' && !isImpersonating) ? 'Support Agent' : ticket.name;
+            const senderType = currentUser.role === 'admin' ? 'admin' : 'customer';
+            const senderName = currentUser.role === 'admin' ? 'Support Agent' : ticket.name;
 
             await addReply(id, replyText, senderType, senderName);
 
