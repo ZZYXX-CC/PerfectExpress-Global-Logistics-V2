@@ -41,8 +41,7 @@ const TicketDetail: React.FC = () => {
             const { ticket, replies } = await getTicketDetails(ticketId);
             setTicket(ticket);
             setReplies(replies);
-        } catch (error) {
-            console.error(error);
+        } catch {
         } finally {
             setLoading(false);
         }
@@ -72,8 +71,7 @@ const TicketDetail: React.FC = () => {
             setReplyText('');
             toast.showSuccess('Reply Sent', 'Your message has been transmitted.');
             await loadData(id);
-        } catch (error) {
-            console.error('Failed to send reply:', error);
+        } catch {
             toast.showError('Transmission Error', 'Failed to send reply.');
         } finally {
             setSending(false);
@@ -86,8 +84,7 @@ const TicketDetail: React.FC = () => {
             await updateTicketStatus(id, newStatus);
             toast.showSuccess('Ticket Updated', `Status changed to ${newStatus}`);
             loadData(id);
-        } catch (e) {
-            console.error(e);
+        } catch {
             toast.showError('Update Failed', 'Failed to update ticket status.');
         }
     };

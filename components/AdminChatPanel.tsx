@@ -113,8 +113,7 @@ const AdminChatPanel: React.FC = () => {
         senderName: adminName,
         message: messageText
       });
-    } catch (err) {
-      console.error('Failed to send reply:', err);
+    } catch {
       toast.showError('Send Failed', 'Unable to deliver message.');
     }
   };
@@ -126,8 +125,7 @@ const AdminChatPanel: React.FC = () => {
       const updated = await updateChatSessionStatus(activeSession.id, nextStatus);
       setActiveSession(updated);
       toast.showSuccess('Session Updated', `Chat marked ${nextStatus}`);
-    } catch (err) {
-      console.error('Failed to update session:', err);
+    } catch {
       toast.showError('Update Failed', 'Unable to update session status.');
     }
   };

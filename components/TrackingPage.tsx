@@ -34,8 +34,7 @@ const TrackingPage: React.FC<TrackingPageProps> = ({ user }) => {
       } else {
         setError('Shipment not found');
       }
-    } catch (err) {
-      console.error('Error loading shipment:', err);
+    } catch {
       setError('Failed to load shipment details');
     } finally {
       setLoading(false);

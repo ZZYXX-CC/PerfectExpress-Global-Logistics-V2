@@ -13,7 +13,6 @@ const getAI = (): GoogleGenAI | null => {
     ai = new GoogleGenAI({ apiKey });
     return ai;
   }
-  console.warn("VITE_GEMINI_API_KEY not set. AI features will use fallback messages.");
   return null;
 };
 
@@ -33,8 +32,7 @@ export const getTrackingInsight = async (shipmentId: string, status: string) => 
       }
     });
     return response.text;
-  } catch (error) {
-    console.error("Error fetching Gemini insight:", error);
+  } catch {
     return "Your package is on its way and everything is looking good. We'll let you know as soon as it gets closer!";
   }
 };
@@ -46,10 +44,7 @@ export const fetchRealShipment = async (id: string): Promise<Shipment | null> =>
     .eq('tracking_number', id.toUpperCase())
     .single();
 
-  if (error || !data) {
-    console.error("Error fetching shipment:", error);
-    return null;
-  }
+  if (error || !data) return null;
 
   return mapShipmentRow(data);
 };
@@ -98,8 +93,7 @@ export const chatWithSupport = async (message: string, history: { role: 'user' |
 
     const response = await chat.sendMessage({ message });
     return response.text;
-  } catch (error) {
-    console.error("Support chat error:", error);
+  } catch {
     return "I'm sorry, I'm having a little trouble connecting.";
   }
 };

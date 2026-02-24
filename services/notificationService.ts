@@ -29,10 +29,7 @@ export const notificationService = {
             .ilike('email', normalized)
             .maybeSingle();
 
-        if (error) {
-            console.error('Error fetching profile by email:', error);
-            return null;
-        }
+        if (error) return null;
 
         return data as ProfileSummary | null;
     },

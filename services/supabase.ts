@@ -10,8 +10,8 @@ let supabase: SupabaseClient;
 if (supabaseUrl && supabaseAnonKey) {
     supabase = createClient(supabaseUrl, supabaseAnonKey);
 } else {
-    console.warn("Supabase environment variables are missing. Using placeholder client.");
-    // Create a dummy client that won't crash - features will be limited
+    // Placeholder client: all requests will fail gracefully.
+    // Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable.
     supabase = createClient('https://placeholder.supabase.co', 'placeholder-key');
 }
 

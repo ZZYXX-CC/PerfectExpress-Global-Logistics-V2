@@ -63,10 +63,7 @@ export const createShipment = async (data: ShipmentData) => {
         .select()
         .single();
 
-    if (error || !shipment) {
-        console.error('Error creating shipment:', error);
-        return { error: 'Failed to create shipment. Please try again.' };
-    }
+    if (error || !shipment) return { error: 'Failed to create shipment. Please try again.' };
 
     // Trigger Notifications (Sender + Admins)
     await notificationService.sendNewShipmentNotifications(shipment);

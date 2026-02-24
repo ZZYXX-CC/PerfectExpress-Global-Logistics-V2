@@ -6,14 +6,8 @@ export interface EmailPayload {
 }
 
 export const emailService = {
-    async sendEmail(payload: EmailPayload) {
-        // In a real production app, this would call a Supabase Edge Function 
-        // that uses the Resend API with a secret key.
-        // For development, we log the attempt.
-        console.log(`[Email Service] Sending to ${payload.to}: ${payload.subject}`);
-        console.log(`[Text Content] ${payload.text}`);
-
-        // Return success for UI feedback
+    async sendEmail(_payload: EmailPayload) {
+        // Stub: In production, call a Supabase Edge Function that uses the Resend API.
         return { success: true };
     },
 

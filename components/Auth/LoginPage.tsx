@@ -111,12 +111,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigate }) => {
         setLoading(false);
         
         // Call onLogin (non-blocking) - it will navigate via onAuthStateChange
-        Promise.resolve(onLogin(email)).catch(err => {
-          console.error('Error in onLogin:', err);
-          // If onLogin fails, navigate manually as fallback
-          setTimeout(() => {
-            window.location.href = '/dashboard';
-          }, 500);
+        Promise.resolve(onLogin(email)).catch(() => {
+          setTimeout(() => { window.location.href = '/dashboard'; }, 500);
         });
       }
     } catch (err: any) {

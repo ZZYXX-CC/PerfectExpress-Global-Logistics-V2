@@ -34,8 +34,7 @@ const SupportPage: React.FC = () => {
     try {
       const tickets = await getUserTickets(userId);
       setMyTickets(tickets);
-    } catch (err) {
-      console.error("Failed to load tickets", err);
+    } catch {
     }
   };
 

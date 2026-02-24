@@ -108,8 +108,7 @@ const AdminStatusUpdater: React.FC<AdminStatusUpdaterProps> = ({ shipment, onSav
 
             toast.showSuccess('Updated', 'Shipment status updated successfully');
             onSave();
-        } catch (error) {
-            console.error('Error updating status:', error);
+        } catch {
             toast.showError('Error', 'Failed to update status');
         } finally {
             setLoading(false);

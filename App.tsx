@@ -57,16 +57,6 @@ const ProtectedRoute: React.FC<{ user: User | null; hasSession: boolean; isAuthI
   return <>{children}</>;
 };
 
-// Admin Route Component
-const AdminRoute: React.FC<{ user: User | null; isAuthInitializing: boolean; children: React.ReactNode }> = ({ user, isAuthInitializing, children }) => {
-  if (isAuthInitializing) {
-    return <Loader />;
-  }
-  if (!user || user.role !== 'Admin') {
-    return <Navigate to="/dashboard" replace />;
-  }
-  return <>{children}</>;
-};
 
 // Main App Content (needs to be inside Router for useNavigate)
 const AppContent: React.FC = () => {
@@ -99,7 +89,6 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      console.warn('Supabase is not configured (missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Auth disabled.');
       setUser(null);
       setHasSession(false);
       setIsAuthInitializing(false);
@@ -125,7 +114,6 @@ const AppContent: React.FC = () => {
           void syncUser(session.user);
         }
       } catch (e) {
-        console.error('Auth initialization failed:', e);
         if (isMounted) setHasSession(false);
       } finally {
         if (isMounted) setIsAuthInitializing(false);
@@ -148,7 +136,6 @@ const AppContent: React.FC = () => {
           setUser(null);
         }
       } catch (e) {
-        console.error('Auth state change handler failed:', e);
       } finally {
         if (isMounted) setIsAuthInitializing(false);
       }
@@ -161,15 +148,12 @@ const AppContent: React.FC = () => {
   }, []);
 
   const syncUser = async (supabaseUser: any) => {
-    console.log('🔍 Syncing user for:', supabaseUser.email, 'ID:', supabaseUser.id);
-
     const fallbackUser: User = {
       name: (supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'USER').toUpperCase(),
       email: supabaseUser.email || '',
       role: 'Client',
     };
 
-    // Ensure we never block the UI waiting on profile fetch.
     setUser(prev => prev ?? fallbackUser);
 
     try {
@@ -180,9 +164,21 @@ const AppContent: React.FC = () => {
         ]);
       };
 
-      // Check for impersonation
+      // Impersonation: only allow if the logged-in user is an admin
+      let targetId = supabaseUser.id;
       const impersonatedId = localStorage.getItem('impersonated_user_id');
-      const targetId = impersonatedId || supabaseUser.id;
+      if (impersonatedId) {
+        const { data: callerProfile } = await withTimeout(
+          supabase.from('profiles').select('role').eq('id', supabaseUser.id).single(),
+          8000
+        );
+        const callerIsAdmin = callerProfile && String(callerProfile.role).toLowerCase().trim() === 'admin';
+        if (callerIsAdmin) {
+          targetId = impersonatedId;
+        } else {
+          localStorage.removeItem('impersonated_user_id');
+        }
+      }
 
       const { data: profile, error } = await withTimeout(
         supabase
@@ -194,10 +190,7 @@ const AppContent: React.FC = () => {
       );
 
       if (error) {
-        console.error('❌ Error fetching profile:', error);
-        // Only create profile if it truly doesn't exist (PGRST116 = not found)
         if (error.code === 'PGRST116' || error.message?.includes('No rows')) {
-          console.log('📝 Creating new profile for user');
           const { data: newProfile, error: insertError } = await withTimeout(
             supabase
               .from('profiles')
@@ -212,57 +205,31 @@ const AppContent: React.FC = () => {
             8000
           );
 
-          if (insertError) {
-            console.error('❌ Error creating profile:', insertError);
-          }
-
-          if (newProfile) {
-            const newUser = {
+          if (!insertError && newProfile) {
+            setUser({
               name: newProfile.full_name || supabaseUser.email?.split('@')[0].toUpperCase(),
               email: supabaseUser.email || '',
               role: 'Client'
-            };
-            console.log('✅ Created new user profile:', newUser);
-            setUser(newUser);
+            });
             return;
           }
-        } else {
-          // For other errors, log and use fallback
-          console.error('❌ Unexpected error fetching profile:', error);
         }
       }
 
       if (!profile) {
-        console.warn('⚠️ No profile found, using fallback Client role');
         setUser(fallbackUser);
         return;
       }
 
-      console.log('📋 Profile data returned:', profile);
-      console.log('🔑 Profile role value:', profile.role, 'Type:', typeof profile.role);
-
-      // Check role - handle both 'admin' and 'Admin' cases, and null/undefined
-      const roleValue = profile.role || '';
-      const roleLower = String(roleValue).toLowerCase().trim();
+      const roleLower = String(profile.role || '').toLowerCase().trim();
       const isAdmin = roleLower === 'admin';
 
-      console.log('🔄 Role after processing:', roleLower, 'Is admin?', isAdmin);
-
-      const newUser = {
+      setUser({
         name: profile.full_name || supabaseUser.email?.split('@')[0].toUpperCase(),
         email: supabaseUser.email || '',
         role: isAdmin ? 'Admin' : 'Client'
-      };
-
-      console.log('✅ Setting user state to:', newUser);
-      console.log('   - Original role from DB:', profile.role);
-      console.log('   - Processed role:', roleLower);
-      console.log('   - Final role:', newUser.role);
-
-      setUser(newUser);
-    } catch (error) {
-      console.error('❌ Unexpected error in syncUser:', error);
-      // Keep fallback
+      });
+    } catch {
       setUser(prev => prev ?? fallbackUser);
     }
   };
@@ -281,10 +248,8 @@ const AppContent: React.FC = () => {
         return shipment;
       }
 
-      console.error("Shipment not found");
       return null;
-    } catch (e) {
-      console.error('Error tracking shipment:', e);
+    } catch {
       return null;
     } finally {
       setIsLoading(false);

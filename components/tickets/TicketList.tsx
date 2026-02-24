@@ -43,8 +43,7 @@ const TicketList: React.FC<TicketListProps> = ({ user }) => {
                     const data = await getUserTickets(sbUser.id);
                     setTickets(data);
                 }
-            } catch (e) {
-                console.error(e);
+            } catch {
             } finally {
                 setLoading(false);
             }

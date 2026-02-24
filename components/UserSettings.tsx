@@ -83,7 +83,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onBack }) => {
 
             alert('Profile updated successfully');
         } catch (err: any) {
-            console.error('Error saving profile:', err);
             alert('Failed to save profile: ' + (err.message || 'Unknown error'));
         } finally {
             setLoading(false);
@@ -138,7 +137,6 @@ const UserSettings: React.FC<UserSettingsProps> = ({ onBack }) => {
             setPasswordSuccess(true);
             setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         } catch (err: any) {
-            console.error('Error changing password:', err);
             setPasswordError(err.message || 'Failed to change password');
         } finally {
             setLoading(false);

@@ -89,8 +89,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       try {
          const allTickets = await getAllTickets();
          setTickets(allTickets);
-      } catch (e) {
-         console.error("Failed to fetch tickets", e);
+      } catch {
       }
 
       setLoading(false);
@@ -165,8 +164,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
 
    // --- Action Handlers ---
    const handleSmartAction = async (shipment: Shipment) => {
-      console.log('Action triggered for:', shipment.id, shipment.status);
-
       let newStatus = shipment.status;
       let updates: Record<string, unknown> = {};
 

@@ -161,8 +161,7 @@ const AdminShipmentEditor: React.FC<AdminShipmentEditorProps> = ({ shipment, onS
             }
             onSave();
             toast.showSuccess('Saved', shipment ? 'Shipment updated' : 'Shipment created');
-        } catch (error) {
-            console.error('Error saving shipment:', error);
+        } catch {
             toast.showError('Error', 'Failed to save shipment.');
         } finally {
             setLoading(false);

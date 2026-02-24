@@ -52,10 +52,7 @@ export const createTicket = async (data: {
         .select()
         .single();
 
-    if (ticketError) {
-        console.error('Error creating ticket:', ticketError);
-        return { error: ticketError.message };
-    }
+    if (ticketError) return { error: ticketError.message };
 
     // 2. Add Initial Message as Reply
     const { error: replyError } = await supabase
@@ -67,9 +64,7 @@ export const createTicket = async (data: {
             message: data.message
         });
 
-    if (replyError) {
-        console.error('Error creating initial reply:', replyError);
-    }
+    if (replyError) { /* initial reply failed, ticket still created */ }
 
     // 3. Notify Admins
     await notificationService.notifyAdmins(
@@ -158,9 +153,6 @@ export const addReply = async (ticketId: string, message: string, senderType: 'c
                 });
             }
 
-            if (notifError) console.error('Notification trigger failed:', notifError);
-        } else {
-            console.log('Notification suppressed: Self-reply or missing owner', { ticketOwnerId: ticket?.user_id, currentUserId: currentUser?.id });
         }
     } else {
         // Trigger notification for ALL admins when a customer replies
@@ -184,7 +176,6 @@ export const addReply = async (ticketId: string, message: string, senderType: 'c
                     });
                 }
 
-                if (notifError) console.error(`Admin notification failed for ${admin.id}:`, notifError);
             }
         }
     }

@@ -37,10 +37,7 @@ export const getAllShipments = async (limit: number = 100) => {
         .order('created_at', { ascending: false })
         .limit(limit);
 
-    if (error) {
-        console.error('Error fetching shipments:', error);
-        return [];
-    }
+    if (error) return [];
 
     return data;
 };
@@ -60,23 +57,18 @@ export const updateShipment = async (trackingNumber: string, updates: ShipmentUp
         })
         .eq('tracking_number', trackingNumber);
 
-    if (error) {
-        console.error('Error updating shipment:', error.message);
-        return { error: `Failed to update shipment: ${error.message}` };
-    }
+    if (error) return { error: `Failed to update shipment: ${error.message}` };
 
-    // Trigger notification
+    // Trigger notification for shipment owner
     if (updates.status || updates.payment_status) {
         const { data: ship } = await supabase.from('shipments').select('user_id').eq('tracking_number', trackingNumber).single();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
         if (ship?.user_id) {
             const { data: { user: currentUser } } = await supabase.auth.getUser();
             const impersonatedId = localStorage.getItem('impersonated_user_id');
             const actorId = currentUser?.id;
 
-            // Only suppress if the actor is the ship.user_id (unless impersonating)
             if (ship.user_id !== actorId || impersonatedId) {
-                const { error: notifError } = await notificationService.createNotification({
+                await notificationService.createNotification({
                     user_id: ship.user_id,
                     type: 'shipment_update',
                     title: updates.status ? 'Shipment Updated' : 'Payment Received',
@@ -86,7 +78,6 @@ export const updateShipment = async (trackingNumber: string, updates: ShipmentUp
                     link: `/track/${trackingNumber}`
                 });
 
-                // Send Email
                 if (updates.status) {
                     const { data: userProfile } = await supabase.from('profiles').select('email').eq('id', ship.user_id).single();
                     if (userProfile) {
@@ -96,10 +87,6 @@ export const updateShipment = async (trackingNumber: string, updates: ShipmentUp
                         });
                     }
                 }
-
-                if (notifError) console.error('Notification trigger failed:', notifError);
-            } else {
-                console.log('Notification suppressed: Self-update', { shipUserId: ship.user_id, actorId });
             }
         }
     }
@@ -111,7 +98,7 @@ export const updateShipment = async (trackingNumber: string, updates: ShipmentUp
 export const logShipmentEvent = async (
     trackingNumber: string,
     event: ShipmentEvent,
-    notifyUser: boolean = false
+    _notifyUser: boolean = false
 ) => {
     // First, get the current shipment to access history
     const { data: shipment, error: fetchError } = await supabase
@@ -120,17 +107,13 @@ export const logShipmentEvent = async (
         .eq('tracking_number', trackingNumber)
         .single();
 
-    if (fetchError || !shipment) {
-        console.error('Error fetching shipment:', fetchError);
-        return { error: 'Failed to fetch shipment' };
-    }
+    if (fetchError || !shipment) return { error: 'Failed to fetch shipment' };
 
     const currentHistory = (shipment.history as ShipmentEvent[]) || [];
 
     // Deduplication check: Don't add if status and location are the same as last entry
     const lastEvent = currentHistory[currentHistory.length - 1];
     if (lastEvent && lastEvent.status === event.status && lastEvent.location === event.location) {
-        console.log('Skipping duplicate history entry');
         return { success: true };
     }
 
@@ -158,10 +141,7 @@ export const logShipmentEvent = async (
         .update(updateData)
         .eq('tracking_number', trackingNumber);
 
-    if (updateError) {
-        console.error('Error updating shipment:', updateError);
-        return { error: 'Failed to log event' };
-    }
+    if (updateError) return { error: 'Failed to log event' };
 
     // Trigger notification
     if (shipment.user_id) {
@@ -174,15 +154,7 @@ export const logShipmentEvent = async (
                 message: `New update for ${trackingNumber}: ${event.status.toUpperCase()} at ${event.location}.`,
                 link: `/track/${trackingNumber}`
             });
-            if (notifError) console.error('Notification trigger failed:', notifError);
-        } else {
-            console.log('Notification suppressed: Self-update', { shipmentUserId: shipment.user_id, currentUserId: currentUser?.id });
         }
-    }
-
-    // Email notification would be handled by backend edge function
-    if (notifyUser) {
-        console.log('[Email] Would notify user about status update:', event.status);
     }
 
     return { success: true };
@@ -201,10 +173,7 @@ export const deleteShipment = async (trackingNumber: string) => {
         .delete()
         .eq('tracking_number', trackingNumber);
 
-    if (error) {
-        console.error('Error deleting shipment:', error);
-        return { error: 'Failed to delete shipment' };
-    }
+    if (error) return { error: 'Failed to delete shipment' };
 
     return { success: true };
 };
@@ -218,10 +187,7 @@ export const getAllUsers = async (limit: number = 100): Promise<UserProfile[]> =
         .order('created_at', { ascending: false })
         .limit(limit);
 
-    if (error) {
-        console.error('Error fetching users:', error);
-        return [];
-    }
+    if (error) return [];
 
     return data as UserProfile[];
 };
@@ -233,10 +199,7 @@ export const updateUserRole = async (userId: string, newRole: 'client' | 'admin'
         .update({ role: newRole, updated_at: new Date().toISOString() })
         .eq('id', userId);
 
-    if (error) {
-        console.error('Error updating role:', error);
-        return { error: 'Failed to update user role' };
-    }
+    if (error) return { error: 'Failed to update user role' };
 
     return { success: true };
 };
@@ -256,10 +219,7 @@ export const inviteUser = async (email: string, role: 'client' | 'admin') => {
             created_at: new Date().toISOString()
         });
 
-    if (error) {
-        console.error('Error inviting user:', error);
-        return { error: 'Failed to invite user' };
-    }
+    if (error) return { error: 'Failed to invite user' };
 
     return { success: true };
 };

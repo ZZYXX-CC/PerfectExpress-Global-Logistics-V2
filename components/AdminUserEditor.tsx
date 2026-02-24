@@ -65,8 +65,7 @@ const AdminUserEditor: React.FC<AdminUserEditorProps> = ({ userProfile, onSave, 
 
             toast.showSuccess('Saved', 'User profile updated');
             onSave();
-        } catch (error) {
-            console.error('Error updating user:', error);
+        } catch {
             toast.showError('Error', 'Failed to update user');
         } finally {
             setLoading(false);
