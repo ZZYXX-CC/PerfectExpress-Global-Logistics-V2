@@ -120,12 +120,15 @@ const ShipmentDetails: React.FC<ShipmentDetailsProps> = ({ shipment, onBack }) =
                      <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-borderColor">
                         <div className="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-borderColor">
                            {(() => {
-                              // Filter consecutive duplicates with robust normalization
-                              const filteredHistory = [...shipment.history].reverse().reduce((acc: any[], event: any) => {
+                              const preDeliveryStatuses = new Set(['pending', 'quoted', 'confirmed']);
+                              const movementHistory = shipment.history.filter(e => {
+                                 const s = (e.status || '').toLowerCase().trim();
+                                 return s && !preDeliveryStatuses.has(s);
+                              });
+
+                              const filteredHistory = [...movementHistory].reverse().reduce((acc: any[], event: any) => {
                                  const last = acc[acc.length - 1];
-
                                  const normalize = (str: string) => str?.toLowerCase().trim().replace(/\s+/g, ' ') || '';
-
                                  if (!last ||
                                     normalize(last.status) !== normalize(event.status) ||
                                     normalize(last.location) !== normalize(event.location)) {
@@ -133,6 +136,17 @@ const ShipmentDetails: React.FC<ShipmentDetailsProps> = ({ shipment, onBack }) =
                                  }
                                  return acc;
                               }, []);
+
+                              if (filteredHistory.length === 0) {
+                                 return (
+                                    <div className="relative pl-10">
+                                       <div className="absolute left-0 top-1.5 w-[23px] h-[23px] bg-bgMain border border-borderColor rounded flex items-center justify-center">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-textMuted"></div>
+                                       </div>
+                                       <p className="text-xs text-textMuted font-medium italic">No movement recorded yet. Tracking updates will appear once the shipment is in transit.</p>
+                                    </div>
+                                 );
+                              }
 
                               return filteredHistory.map((event, i) => (
                                  <div key={i} className="relative pl-10 group">

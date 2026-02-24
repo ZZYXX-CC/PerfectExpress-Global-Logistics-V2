@@ -3,13 +3,33 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import { Icon } from '@iconify/react'
 import L from 'leaflet'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
-// Sub-component to handle map resize invalidation
+const TILE_URLS = {
+    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+}
+
+function useTheme(): 'dark' | 'light' {
+    const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+        return (document.documentElement.getAttribute('data-theme') as 'dark' | 'light') || 'dark'
+    })
+
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            const current = document.documentElement.getAttribute('data-theme') as 'dark' | 'light'
+            setTheme(current || 'dark')
+        })
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+        return () => observer.disconnect()
+    }, [])
+
+    return theme
+}
+
 function ResizeMap() {
     const map = useMap()
     useEffect(() => {
-        // Short delay to ensure animations/layout are finished
         const timer = setTimeout(() => {
             map.invalidateSize()
         }, 500)
@@ -50,37 +70,11 @@ export default function TrackingMap({
     location,
     status
 }: TrackingMapProps) {
-    // Default center (London) if no location provided
+    const theme = useTheme()
     const defaultCenter: [number, number] = [51.505, -0.09]
     const center: [number, number] = location ? [location.lat, location.lng] : defaultCenter
 
-    const mapPlaceholder = (
-        <div className={`bg-bgSurface rounded-sm border border-borderColor overflow-hidden ${className}`}>
-            <div className="h-full flex flex-col">
-                <div className="bg-neutral-900 text-white px-4 py-3 flex items-center gap-2 border-b border-white/5">
-                    <Icon icon="solar:map-point-linear" width="16" className="text-red-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Live Tracking</span>
-                    {status && (
-                        <span className="ml-auto text-[9px] bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-0.5 rounded-sm uppercase tracking-widest font-bold">
-                            {status}
-                        </span>
-                    )}
-                </div>
-                <div className="flex-1 p-6 space-y-4">
-                    <div className="flex items-center justify-center p-8 border border-dashed border-borderColor rounded-sm bg-bgMain/50">
-                        <div className="text-center">
-                            <Icon icon="solar:map-linear" width="48" className="text-textMuted mx-auto mb-2 opacity-50" />
-                            <p className="text-xs text-textMuted font-medium">Initializing Map...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-
-    // Using a key on MapContainer forces re-render when center changes
-    // This is a common pattern for Leaflet in React
-    const mapKey = `${center[0]}-${center[1]}`
+    const mapKey = `${center[0]}-${center[1]}-${theme}`
 
     // Custom pulsing marker icon
     const pulsingIcon = L.divIcon({
@@ -104,7 +98,7 @@ export default function TrackingMap({
                 <ResizeMap />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                    url={TILE_URLS[theme]}
                 />
                 <Marker position={center} icon={pulsingIcon}>
                     <Popup>
