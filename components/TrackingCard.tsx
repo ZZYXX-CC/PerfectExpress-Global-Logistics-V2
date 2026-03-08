@@ -4,7 +4,7 @@ import { getTrackingInsight } from '../services/geminiService';
 import { Shipment } from '../types';
 
 interface TrackingCardProps {
-  onTrack: (id: string) => Promise<Shipment | null>;
+  onTrack: (id: string) => Shipment;
 }
 
 const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
@@ -12,37 +12,23 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
   const [loading, setLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<Shipment['status'] | null>(null);
-  const [trackError, setTrackError] = useState<string | null>(null);
 
-  const statusOrder: Shipment['status'][] = [
-    'pending',
-    'quoted',
-    'confirmed',
-    'in-transit',
-    'out-for-delivery',
-    'delivered'
-  ];
-
-  const getProgress = (status: Shipment['status']) => {
-    if (status === 'held') return 60;
-    if (status === 'cancelled') return 0;
-
-    const index = statusOrder.indexOf(status);
-    if (index === -1) return 0;
-    const base = Math.round((index / (statusOrder.length - 1)) * 100);
-    return index === 0 ? 10 : base;
+  const getProgress = (status: string) => {
+    switch(status) {
+      case 'Pending': return 25;
+      case 'In Transit': return 50;
+      case 'Out for Delivery': return 75;
+      case 'Delivered': return 100;
+      default: return 0;
+    }
   };
 
-  const getProgressLabel = (status: Shipment['status']) => {
-    switch(status) {
-      case 'pending': return 'Order Created';
-      case 'quoted': return 'Awaiting Payment';
-      case 'confirmed': return 'Payment Confirmed';
-      case 'in-transit': return 'In Transit';
-      case 'out-for-delivery': return 'Out for Delivery';
-      case 'delivered': return 'Delivered';
-      case 'held': return 'On Hold';
-      case 'cancelled': return 'Cancelled';
+  const getProgressLabel = (status: string) => {
+     switch(status) {
+      case 'Pending': return 'Order Processing';
+      case 'In Transit': return 'In Transit Network';
+      case 'Out for Delivery': return 'Last Mile Delivery';
+      case 'Delivered': return 'Package Delivered';
       default: return 'Tracking...';
     }
   };
@@ -54,24 +40,16 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
     setLoading(true);
     setAiInsight(null);
     setCurrentStatus(null);
-    setTrackError(null);
 
     // Short delay to simulate network feel even with local mock
     await new Promise(r => setTimeout(r, 600));
 
-    try {
-      const shipment = await onTrack(trackingId);
-      if (!shipment) {
-        setTrackError('Shipment not found');
-        return;
-      }
-
-      setCurrentStatus(shipment.status);
-      const insight = await getTrackingInsight(trackingId, shipment.status);
-      setAiInsight(insight || null);
-    } finally {
-      setLoading(false);
-    }
+    const shipment = onTrack(trackingId);
+    setCurrentStatus(shipment.status);
+    
+    const insight = await getTrackingInsight(trackingId, shipment.status);
+    setAiInsight(insight || null);
+    setLoading(false);
   };
 
   return (
@@ -84,7 +62,7 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
              </div>
              <input
               type="text"
-              placeholder="ENTER SHIPMENT REFERENCE (PFX-XXXXXXXX)"
+              placeholder="ENTER SHIPMENT REFERENCE (PX-XXXXXXXX)"
               className="w-full bg-bgMain/60 border-none rounded-sm pl-14 pr-6 py-5 focus:ring-1 focus:ring-textMuted outline-none transition-all text-textMain font-bold uppercase tracking-widest text-[10px]"
               value={trackingId}
               onChange={(e) => setTrackingId(e.target.value)}
@@ -112,22 +90,7 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
         </form>
 
         <AnimatePresence>
-          {trackError && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="mx-1.5 mt-4 mb-1 p-6 bg-bgMain border border-borderColor rounded-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-red-600 text-center">
-                  {trackError}
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          {currentStatus && !trackError && (
+          {currentStatus && (
             <motion.div 
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
@@ -152,22 +115,15 @@ const TrackingCard: React.FC<TrackingCardProps> = ({ onTrack }) => {
                       </motion.div>
                    </div>
                    <div className="flex justify-between mt-2">
-                      {([
-                         { status: 'pending', label: 'order created' },
-                         { status: 'quoted', label: 'awaiting payment' },
-                         { status: 'confirmed', label: 'payment confirmed' },
-                         { status: 'in-transit', label: 'in transit' },
-                         { status: 'out-for-delivery', label: 'out for delivery' },
-                         { status: 'delivered', label: 'delivered' }
-                      ] as { status: Shipment['status']; label: string }[]).map((step) => {
-                         const stepProgress = getProgress(step.status);
+                      {['Pending', 'In Transit', 'Out for Delivery', 'Delivered'].map((step, i) => {
+                         const stepProgress = getProgress(step);
                          const currentProgress = getProgress(currentStatus);
                          const isActive = currentProgress >= stepProgress;
                          
                          return (
-                           <div key={step.status} className={`flex flex-col items-center gap-1 transition-colors duration-500 ${isActive ? 'text-textMain' : 'text-textMuted/30'}`}>
+                           <div key={step} className={`flex flex-col items-center gap-1 transition-colors duration-500 ${isActive ? 'text-textMain' : 'text-textMuted/30'}`}>
                               <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-red-600' : 'bg-current'}`}></div>
-                              <span className="hidden md:block text-[8px] font-bold uppercase tracking-wider">{step.label}</span>
+                              <span className="hidden md:block text-[8px] font-bold uppercase tracking-wider">{step}</span>
                            </div>
                          )
                       })}

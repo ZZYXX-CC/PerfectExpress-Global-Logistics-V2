@@ -4,7 +4,7 @@ import TrackingCard from './TrackingCard';
 import { Shipment } from '../types';
 
 interface HeroProps {
-  onTrack: (id: string) => Promise<Shipment | null>;
+  onTrack: (id: string) => Shipment;
   standalone?: boolean;
 }
 

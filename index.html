@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,11 +29,7 @@
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;900&family=Manrope:wght@400..800&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;900&family=Manrope:wght@400..800&display=swap" rel="stylesheet">
   <style>
     :root {
       /* Dark Mode (Default) */
@@ -46,7 +41,7 @@
       --text-muted: #737373;
       --glass-bg: rgba(23, 23, 23, 0.6);
     }
-
+    
     [data-theme="light"] {
       /* Grey Themed Light Mode */
       --bg-main: #e5e5e5;
@@ -66,17 +61,11 @@
       overflow-x: hidden;
       transition: background-color 0.3s ease, color 0.3s ease;
     }
-
-    h1,
-    h2,
-    h3,
-    h4,
-    .heading-font {
+    h1, h2, h3, h4, .heading-font {
       font-family: 'Manrope', sans-serif;
       font-weight: 800;
       letter-spacing: -0.02em;
     }
-
     .metadata-label {
       font-family: 'Inter', sans-serif;
       font-weight: 900;
@@ -84,115 +73,37 @@
       letter-spacing: 0.35em;
       font-size: 9px;
     }
-
-    .accent-red-text {
-      color: var(--accent-red);
-    }
-
-    .bg-accent-red {
-      background-color: var(--accent-red);
-    }
-
+    .accent-red-text { color: var(--accent-red); }
+    .bg-accent-red { background-color: var(--accent-red); }
+    
     .glass-surface {
       background: var(--glass-bg);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
     }
 
-    .admin-input {
-      background-color: transparent;
-      border: 1px solid var(--border-color);
-      color: var(--accent-red);
-      padding: 0.75rem 1rem;
-      border-radius: 2px;
-      width: 100%;
-      font-size: 13px;
-      font-weight: 600;
-      transition: all 0.2s ease;
-      font-family: 'Inter', sans-serif;
-    }
-
-    .admin-input:focus {
-      outline: none;
-      border-color: var(--accent-red);
-      background-color: rgba(220, 38, 38, 0.05);
-      box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
-    }
-
-    .admin-input::placeholder {
-      color: #404040;
-      text-transform: uppercase;
-      font-size: 10px;
-      letter-spacing: 0.1em;
-      font-weight: 800;
-    }
-
-    ::-webkit-scrollbar {
-      width: 5px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: var(--bg-main);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: #404040;
-      border-radius: 2px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--accent-red);
-    }
-
-    /* Map Customization */
-    .map-marker-container {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 20px;
-      height: 20px;
-    }
-
-    .map-pulse {
-      width: 12px;
-      height: 12px;
-      background: #dc2626;
-      border-radius: 50%;
-      box-shadow: 0 0 0 rgba(220, 38, 38, 0.4);
-      animation: pulse 2s infinite;
-      border: 2px solid #fafafa;
-    }
-
-    @keyframes pulse {
-      0% {
-        box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
-      }
-
-      70% {
-        box-shadow: 0 0 0 15px rgba(220, 38, 38, 0);
-      }
-
-      100% {
-        box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
-      }
-    }
-
-    .leaflet-container {
-      background: #0a0a0a !important;
-      height: 100% !important;
-      width: 100% !important;
-    }
-
-    .leaflet-tile-pane {
-      filter: grayscale(1) invert(0.1) brightness(0.8);
-    }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg-main); }
+    ::-webkit-scrollbar-thumb { background: #404040; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-red); }
   </style>
-  <!-- Removed importmap - using Vite's local node_modules resolution instead -->
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "framer-motion": "https://esm.sh/framer-motion@12.0.0-alpha.1?external=react,react-dom",
+    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
+    "@google/genai": "https://esm.sh/@google/genai@1.38.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
+  }
+}
+</script>
 </head>
-
 <body>
   <div id="root"></div>
   <script type="module" src="./index.tsx"></script>
 </body>
-
 </html>

@@ -1,17 +1,3 @@
-# Dependencies
-node_modules
-
-# Build outputs
-dist
-dist-ssr
-*.tsbuildinfo
-legacy-v1/.next/
-
-# Environment variables
-.env
-.env.*
-*.local
-
 # Logs
 logs
 *.log
@@ -21,14 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# macOS resource forks
-._*
-.DS_Store
+node_modules
+dist
+dist-ssr
+*.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
+.DS_Store
 *.suo
 *.ntvs*
 *.njsproj

@@ -1,9 +1,7 @@
 
 export interface Shipment {
   id: string;
-  status: 'pending' | 'quoted' | 'confirmed' | 'in-transit' | 'out-for-delivery' | 'delivered' | 'held' | 'cancelled';
-  price?: number;
-  paymentStatus?: 'paid' | 'unpaid';
+  status: 'In Transit' | 'Delivered' | 'Pending' | 'Out for Delivery';
   origin: string;
   destination: string;
   estimatedArrival: string;
@@ -15,11 +13,6 @@ export interface Shipment {
   items: ShipmentItem[];
   sender: AddressInfo;
   recipient: AddressInfo;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-  createdAt?: string;
 }
 
 export interface ShipmentItem {
@@ -35,7 +28,6 @@ export interface AddressInfo {
   street: string;
   city: string;
   country: string;
-  email?: string;
 }
 
 export interface ShipmentEvent {
@@ -43,9 +35,6 @@ export interface ShipmentEvent {
   time: string;
   location: string;
   description: string;
-  status?: string;
-  timestamp?: string;
-  note?: string;
 }
 
 export interface QuoteRequest {
